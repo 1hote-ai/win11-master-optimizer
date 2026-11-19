@@ -19,22 +19,25 @@
 ## ⚡ Архитектура и Структура Файлов
 
 ```
+C:\Users\egorv\Desktop\Windows11\
 ├── Запустить Оптимизатор.bat        <-- Главный ярлык запуска от Администратора (RU)
 ├── Start-Optimizer.bat              <-- Альтернативный англоязычный лаунчер
-├── Start.bat                        <-- Локальный лаунчер
-├── Win11Optimizer.ps1               <-- Главный исполняемый движок (TUI + CLI)
-├── Test-Win11Optimizer.ps1          <-- Автоматизированный тестовый набор (28 тестов)
-├── README.md                        <-- Данная инженерная документация
-├── .gitignore                       <-- Игнорирование бэкапов и логов
-└── Modules/
-    ├── Safety.psm1                  <-- Точки восстановления и движок снимков/отката
-    ├── GamingLatency.psm1           <-- MSI Mode, CPU Scheduling, Standby RAM Cleaner
-    ├── NetworkGaming.psm1           <-- Nagle, RSS, DNS Benchmark & DoH Switcher
-    ├── GpuDisplay.psm1              <-- MPO, HAGS, DirectX Windowed, HDCP, Очистка кэша GPU
-    ├── Debloat.psm1                 <-- Отключение Recall (24H2), Copilot, Bing, Telemetry
-    ├── SystemUI.psm1                <-- Classic меню, Проводник, Главная, Пуск, Maintenance
-    ├── AppInstaller.psm1            <-- Тихий установщик Winget (замена 170+ ссылок)
-    └── Diagnostics.psm1             <-- Аудит 26+ настроек, пинг, DPC/ISR, таймер Win32
+└── Optimizer\
+    ├── Start.bat                    <-- Локальный лаунчер
+    ├── Win11Optimizer.ps1           <-- Главный исполняемый движок (TUI + CLI)
+    ├── Test-Win11Optimizer.ps1      <-- Автоматизированный тестовый набор (28 тестов)
+    ├── README.md                    <-- Данная инженерная документация
+    ├── Backups\                     <-- Автоматические JSON-снимки реестра для отката
+    ├── Reports\                     <-- Сохраненные отчеты диагностики и аудита
+    └── Modules\
+        ├── Safety.psm1              <-- Точки восстановления и движок снимков/отката
+        ├── GamingLatency.psm1       <-- MSI Mode, CPU Scheduling, Standby RAM Cleaner
+        ├── NetworkGaming.psm1       <-- Nagle, RSS, DNS Benchmark & DoH Switcher
+        ├── GpuDisplay.psm1          <-- MPO, HAGS, DirectX Windowed, HDCP, Очистка кэша GPU
+        ├── Debloat.psm1             <-- Отключение Recall (24H2), Copilot, Bing, Telemetry
+        ├── SystemUI.psm1            <-- Classic меню, Проводник, Главная, Пуск, Maintenance
+        ├── AppInstaller.psm1        <-- Тихий установщик Winget (замена 170+ ссылок)
+        └── Diagnostics.psm1         <-- Аудит 24+ настроек, пинг, DPC/ISR, таймер Win32
 ```
 
 ---
@@ -116,11 +119,11 @@
 
 ### Способ 1: Интерактивное меню
 Дважды щелкните на:
-`Запустить Оптимизатор.bat` (или `Start.bat`)
+`C:\Users\egorv\Desktop\Windows11\Запустить Оптимизатор.bat`
 
 ```
   ГЛАВНОЕ МЕНЮ ОПТИМИЗАЦИИ:
-  [1]   🔎  ПРОВЕРИТЬ ОПТИМИЗАЦИЮ ПК (Аудит 26 настроек [✓] / [!])
+  [1]   🔎  ПРОВЕРИТЬ ОПТИМИЗАЦИЮ ПК (Аудит 24+ настроек [✓] / [!])
   [2]   🚀  ИГРОВОЙ СУПЕР-БУСТ (MSI, CPU, GPU, MPO, HAGS, Сеть, RAM, UI)
   [3]   ⚡  ЖЁСТКАЯ ОПТИМИЗАЦИЯ (MSI Mode, CPU Scheduling, RAM Cleaner, VBS)
   [4]   🌐  ИГРОВОЙ СЕТЕВОЙ СТЕК (Nagle Off, RSS, DNS Benchmark & DoH Switcher)
@@ -167,4 +170,4 @@ powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode Rollback
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\Test-Win11Optimizer.ps1
 ```
-*(Все 28 тестов завершаются со статусом `[PASS]` и Exit Code 0).*
+*(Все 25 тестов завершаются со статусом `[PASS]` и Exit Code 0).*
