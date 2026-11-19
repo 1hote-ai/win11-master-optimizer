@@ -164,6 +164,387 @@ if ($Mode -ne "Interactive") {
     exit
 }
 
+function Write-OptimizerMenuItem {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Number,
+        [Parameter(Mandatory = $true)]
+        [string]$Title,
+        [Parameter(Mandatory = $true)]
+        [bool]$IsActive,
+        [string]$ActiveTag = "[АКТИВНО]",
+        [string]$InactiveTag = "[НЕ АКТИВНО]",
+        [int]$PadWidth = 58
+    )
+
+    $tag = if ($IsActive) { $ActiveTag } else { $InactiveTag }
+    $check = if ($IsActive) { "[✓]" } else { "[ ]" }
+    $color = if ($IsActive) { "Green" } else { "DarkGray" }
+    $fullTitle = "$check [$Number] $Title"
+    if ($fullTitle.Length -lt $PadWidth) {
+        $fullTitle = $fullTitle.PadRight($PadWidth)
+    }
+
+    Write-Host "  $fullTitle  $tag" -ForegroundColor $color
+}
+
+function Show-HardcoreGamingMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "==========================================================================" -ForegroundColor Cyan
+        Write-Host "            ЖЁСТКАЯ ОПТИМИЗАЦИЯ И НИЗКАЯ ЗАДЕРЖКА (LOW LATENCY)           " -ForegroundColor White
+        Write-Host "==========================================================================" -ForegroundColor Cyan
+
+        $msiStat = Get-MsiModeStatus
+        $cpuStat = Get-CpuGamingSchedulingStatus
+        $pwrStat = Get-UltimatePerformancePlanStatus
+        $sysStat = Get-SystemResponsivenessStatus
+        $vbsStat = Get-VbsStatus
+        $isVbsOptimal = (-not $vbsStat.VbsActive)
+
+        $osMem = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+        $freeMemMb = if ($osMem) { [math]::Round($osMem.FreePhysicalMemory / 1024, 0) } else { 0 }
+
+        Write-OptimizerMenuItem -Number "1" -Title "Настроить MSI Mode для GPU, Сети и Звука (High Priority)" `
+            -IsActive $msiStat.Optimal -ActiveTag "[АКТИВНО ($($msiStat.Description))]" -InactiveTag "[НЕ АКТИВНО (Дефолт IRQ)]"
+
+        Write-OptimizerMenuItem -Number "2" -Title "Отключить Power Throttling и настроить кванты CPU" `
+            -IsActive $cpuStat.Optimal -ActiveTag "[АКТИВНО ($($cpuStat.Description))]" -InactiveTag "[НЕ АКТИВНО (Win32Pri=$($cpuStat.Win32PrioritySeparation))]"
+
+        Write-OptimizerMenuItem -Number "3" -Title "Активировать схему 'Максимальная производительность'" `
+            -IsActive $pwrStat.Optimal -ActiveTag "[АКТИВНО (Ultimate Performance)]" -InactiveTag "[НЕ АКТИВНО (Дефолт схема)]"
+
+        Write-OptimizerMenuItem -Number "4" -Title "Настроить SystemResponsiveness (0% резерва, 100% играм)" `
+            -IsActive $sysStat.Optimal -ActiveTag "[АКТИВНО (0% резерва)]" -InactiveTag "[НЕ АКТИВНО ($($sysStat.Value)% резерв)]"
+
+        Write-Host "  [⚡] [5] Очистить Standby RAM кэш и Working Sets (Свободно: $freeMemMb МБ)" -ForegroundColor Cyan
+
+        Write-OptimizerMenuItem -Number "6" -Title "Переключить изоляцию ядра (VBS / HVCI) [С предупреждением]" `
+            -IsActive $isVbsOptimal -ActiveTag "[ВЫКЛЮЧЕНА (Оптимально +FPS)]" -InactiveTag "[ВКЛЮЧЕНА (Защита ядра)]"
+
+        Write-Host ""
+        Write-Host "  [🚀] [7] Применить ВСЕ твики низкой задержки разом" -ForegroundColor Green
+        Write-Host "  [0]  Назад в главное меню" -ForegroundColor Gray
+        Write-Host ""
+
+        $llChoice = Read-Host "Шеф, выберите действие"
+        if ($llChoice -eq "0" -or [string]::IsNullOrWhiteSpace($llChoice)) { break }
+
+        switch ($llChoice) {
+            "1" {
+                New-OptimizerRestorePoint -Description "MSIMode" | Out-Null
+                Set-GamingMsiMode
+            }
+            "2" {
+                New-OptimizerRestorePoint -Description "CpuScheduling" | Out-Null
+                Set-CpuGamingScheduling
+            }
+            "3" {
+                Enable-UltimatePerformancePlan
+            }
+            "4" {
+                New-OptimizerRestorePoint -Description "SystemResponsiveness" | Out-Null
+                Set-SystemResponsivenessGaming
+            }
+            "5" {
+                Clear-StandbyRamAndWorkingSet | Out-Null
+            }
+            "6" {
+                $curVbs = Get-VbsStatus
+                $enableVbs = -not $curVbs.VbsActive
+                Set-VbsState -Enable $enableVbs
+            }
+            "7" {
+                New-OptimizerRestorePoint -Description "HardcoreLowLatency" | Out-Null
+                Set-GamingMsiMode
+                Set-CpuGamingScheduling
+                Enable-UltimatePerformancePlan
+                Set-SystemResponsivenessGaming
+                Clear-StandbyRamAndWorkingSet | Out-Null
+            }
+            default {
+                Write-Host "Неверный выбор." -ForegroundColor Yellow
+            }
+        }
+        Write-Host "`nНажмите Enter для возврата в меню..."; Read-Host | Out-Null
+    }
+}
+
+function Show-NetworkMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "==========================================================================" -ForegroundColor Cyan
+        Write-Host "                       ОПТИМИЗАЦИЯ СЕТЕВОГО СТЕКА                         " -ForegroundColor White
+        Write-Host "==========================================================================" -ForegroundColor Cyan
+
+        $nagleStat = Get-NagleStatus
+        $netStackStat = Get-NetworkGamingStackStatus
+        $dnsStat = Get-GamingDnsStatus
+
+        Write-OptimizerMenuItem -Number "1" -Title "Отключить алгоритм Нейгла (TcpAckFrequency=1, TCPNoDelay=1)" `
+            -IsActive $nagleStat.Optimal -ActiveTag "[ОТКЛЮЧЕН (Оптимально)]" -InactiveTag "[АКТИВЕН (Дефолт задержки)]"
+
+        Write-OptimizerMenuItem -Number "2" -Title "Настроить RSS, timestamps и NetworkThrottlingIndex" `
+            -IsActive $netStackStat.Optimal -ActiveTag "[АКТИВНО (0xFFFFFFFF троттлинг снят)]" -InactiveTag "[НЕ АКТИВНО (Дефолт троттлинг)]"
+
+        Write-OptimizerMenuItem -Number "3" -Title "Gaming DNS Benchmark & DoH Switcher (Cloudflare/Quad9/AdGuard)" `
+            -IsActive $dnsStat.Optimal -ActiveTag "[ОПТИМИЗИРОВАН ($($dnsStat.ProviderLabel))]" -InactiveTag "[СТАНДАРТНЫЙ ($($dnsStat.ProviderLabel))]"
+
+        Write-Host ""
+        Write-Host "  [🔄] [4] Сбросить / Откатить DNS (DHCP роутера или резервная копия)" -ForegroundColor Yellow
+        Write-Host "  [🚀] [5] Применить ПОЛНЫЙ сетевой комплекс" -ForegroundColor Green
+        Write-Host "  [0]  Назад в главное меню" -ForegroundColor Gray
+        Write-Host ""
+
+        $netChoice = Read-Host "Шеф, выберите действие"
+        if ($netChoice -eq "0" -or [string]::IsNullOrWhiteSpace($netChoice)) { break }
+
+        switch ($netChoice) {
+            "1" {
+                New-OptimizerRestorePoint -Description "NetworkStack" | Out-Null
+                Set-GamingNetworkStack
+            }
+            "2" {
+                New-OptimizerRestorePoint -Description "NetworkStack" | Out-Null
+                Set-GamingNetworkStack
+            }
+            "3" {
+                Show-DnsBenchmarkAndSwitcherMenu
+            }
+            "4" {
+                Restore-GamingDns | Out-Null
+            }
+            "5" {
+                New-OptimizerRestorePoint -Description "NetworkStack" | Out-Null
+                Set-GamingNetworkStack
+            }
+            default {
+                Write-Host "Неверный выбор." -ForegroundColor Yellow
+            }
+        }
+        Write-Host "`nНажмите Enter для возврата в меню..."; Read-Host | Out-Null
+    }
+}
+
+function Show-GpuMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "==========================================================================" -ForegroundColor Cyan
+        Write-Host "                 GPU, ДИСПЛЕЙ И КЭШ ШЕЙДЕРОВ (LOW INPUT LAG)              " -ForegroundColor White
+        Write-Host "==========================================================================" -ForegroundColor Cyan
+
+        $curMpo = Get-MpoStatus
+        $curHags = Get-HagsStatus
+        $curDx = Get-DirectXWindowedStatus
+        $curWu = Get-WindowsUpdateDriverProtectionStatus
+        $curHdcp = Get-NvidiaHdcpStatus
+
+        Write-OptimizerMenuItem -Number "1" -Title "Переключить MPO (OverlayTestMode=5) для устранения микро-фризов" `
+            -IsActive $curMpo.Disabled -ActiveTag "[ОТКЛЮЧЕН (Оптимально)]" -InactiveTag "[ВКЛЮЧЕН (Дефолт)]"
+
+        Write-OptimizerMenuItem -Number "2" -Title "Переключить HAGS (Hardware-Accelerated GPU Scheduling)" `
+            -IsActive $curHags.Enabled -ActiveTag "[ВКЛЮЧЕН (Оптимально DLSS 3)]" -InactiveTag "[ВЫКЛЮЧЕН (Дефолт)]"
+
+        Write-OptimizerMenuItem -Number "3" -Title "Переключить оконные оптимизации DirectX (AutoPlayMode=1)" `
+            -IsActive $curDx.Optimal -ActiveTag "[ВКЛЮЧЕНО (AutoPlayMode=1)]" -InactiveTag "[ВЫКЛЮЧЕНО (Дефолт)]"
+
+        Write-OptimizerMenuItem -Number "4" -Title "Переключить защиту видеодрайвера от Windows Update" `
+            -IsActive $curWu.Protected -ActiveTag "[ЗАЩИЩЕН (ExcludeWU=1)]" -InactiveTag "[НЕ ЗАЩИЩЕН (Дефолт)]"
+
+        Write-OptimizerMenuItem -Number "5" -Title "Переключить NVIDIA HDCP DRM (RMHdcpKeyglobZero)" `
+            -IsActive $curHdcp.Optimal -ActiveTag "[DRM ОТКЛЮЧЕН (Оптимально)]" -InactiveTag $(if (-not $curHdcp.IsNvidia) { "[Н/Д (GPU не NVIDIA)]" } else { "[DRM АКТИВЕН (Дефолт)]" })
+
+        Write-Host ""
+        Write-Host "  [⚡] [6] Очистить кэш шейдеров DirectX/OpenGL и TEMP (Освобождение диска)" -ForegroundColor Cyan
+        Write-Host "  [🚀] [7] Применить ВСЕ оптимизации GPU и дисплея разом" -ForegroundColor Green
+        Write-Host "  [🔄] [8] Откатить ВСЕ параметры GPU и дисплея к дефолтам" -ForegroundColor Yellow
+        Write-Host "  [0]  Назад в главное меню" -ForegroundColor Gray
+        Write-Host ""
+
+        $gpuChoice = Read-Host "Шеф, выберите действие"
+        if ($gpuChoice -eq "0" -or [string]::IsNullOrWhiteSpace($gpuChoice)) { break }
+
+        switch ($gpuChoice) {
+            "1" {
+                Set-MpoState -Disable (-not $curMpo.Disabled)
+            }
+            "2" {
+                Set-HagsState -Enable (-not $curHags.Enabled)
+            }
+            "3" {
+                Set-DirectXWindowedOptimization -Enable (-not $curDx.Optimal)
+            }
+            "4" {
+                Set-WindowsUpdateDriverProtection -Enable (-not $curWu.Protected)
+            }
+            "5" {
+                Set-NvidiaHdcpDisable -Disable (-not $curHdcp.Disabled)
+            }
+            "6" {
+                Clear-ShaderCacheAndTemp | Out-Null
+            }
+            "7" {
+                New-OptimizerRestorePoint -Description "FullGpuDisplay" | Out-Null
+                Invoke-FullGpuDisplayOptimization
+            }
+            "8" {
+                Restore-AllGpuDisplaySettings
+            }
+            default {
+                Write-Host "Неверный выбор." -ForegroundColor Yellow
+            }
+        }
+        Write-Host "`nНажмите Enter для возврата в меню..."; Read-Host | Out-Null
+    }
+}
+
+function Show-DebloatMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "==========================================================================" -ForegroundColor Cyan
+        Write-Host "                         SMART MODERN DEBLOAT                             " -ForegroundColor White
+        Write-Host "==========================================================================" -ForegroundColor Cyan
+
+        $recallStat = Get-RecallStatus
+        $copilotStat = Get-CopilotStatus
+        $bingStat = Get-BingSearchStatus
+        $widgetsStat = Get-WidgetsStatus
+        $telemetryStat = Get-TelemetryStatus
+        $bloatStat = Get-BloatwareStatus
+
+        Write-OptimizerMenuItem -Number "1" -Title "Отключить AI Recall (Windows 11 24H2)" `
+            -IsActive $recallStat.Disabled -ActiveTag "[ОТКЛЮЧЕН (Оптимально)]" -InactiveTag "[АКТИВЕН (Дефолт)]"
+
+        Write-OptimizerMenuItem -Number "2" -Title "Отключить Microsoft Copilot" `
+            -IsActive $copilotStat.Disabled -ActiveTag "[ОТКЛЮЧЕН (Оптимально)]" -InactiveTag "[АКТИВЕН (Дефолт)]"
+
+        Write-OptimizerMenuItem -Number "3" -Title "Отключить веб-поиск Bing и спам в меню Пуск" `
+            -IsActive $bingStat.Disabled -ActiveTag "[ОТКЛЮЧЕН (Оптимально)]" -InactiveTag "[АКТИВЕН (Дефолт)]"
+
+        Write-OptimizerMenuItem -Number "4" -Title "Отключить виджеты и новости на панели задач" `
+            -IsActive $widgetsStat.Disabled -ActiveTag "[ОТКЛЮЧЕНЫ (Оптимально)]" -InactiveTag "[АКТИВНЫ (Дефолт)]"
+
+        Write-OptimizerMenuItem -Number "5" -Title "Отключить фоновую телеметрию и сбор данных (DiagTrack)" `
+            -IsActive $telemetryStat.Disabled -ActiveTag "[ОТКЛЮЧЕНА (Оптимально)]" -InactiveTag "[АКТИВНА (Дефолт)]"
+
+        Write-OptimizerMenuItem -Number "6" -Title "Безопасно удалить предустановленный UWP-мусор (Store/Xbox целы)" `
+            -IsActive $bloatStat.Clean -ActiveTag "[ОЧИЩЕНО (Мусор не найден)]" -InactiveTag "[НЕ ОЧИЩЕНО (Найдено: $($bloatStat.Count))]"
+
+        Write-Host ""
+        Write-Host "  [🚀] [7] Выполнить ПОЛНЫЙ безопасный Debloat" -ForegroundColor Green
+        Write-Host "  [0]  Назад в главное меню" -ForegroundColor Gray
+        Write-Host ""
+
+        $debChoice = Read-Host "Шеф, выберите действие"
+        if ($debChoice -eq "0" -or [string]::IsNullOrWhiteSpace($debChoice)) { break }
+
+        switch ($debChoice) {
+            "1" { Disable-Win11Recall }
+            "2" { Disable-Win11Copilot }
+            "3" { Disable-BingSearchAndCortana }
+            "4" { Disable-WidgetsAndNews }
+            "5" { Disable-TelemetryAndDiagnostics }
+            "6" { Remove-SafeBloatwareApps }
+            "7" {
+                New-OptimizerRestorePoint -Description "FullDebloat" | Out-Null
+                Disable-Win11Recall
+                Disable-Win11Copilot
+                Disable-BingSearchAndCortana
+                Disable-WidgetsAndNews
+                Disable-TelemetryAndDiagnostics
+                Remove-SafeBloatwareApps
+            }
+            default {
+                Write-Host "Неверный выбор." -ForegroundColor Yellow
+            }
+        }
+        Write-Host "`nНажмите Enter для возврата в меню..."; Read-Host | Out-Null
+    }
+}
+
+function Show-InterfaceMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "==========================================================================" -ForegroundColor Cyan
+        Write-Host "                     ИНТЕРФЕЙС И СИСТЕМНЫЕ ТВКИ                           " -ForegroundColor White
+        Write-Host "==========================================================================" -ForegroundColor Cyan
+
+        $classicStat = Get-ClassicContextMenuStatus
+        $expStat = Get-FileExplorerTweaksStatus
+        $gDvrStat = Get-GameDvrStatus
+        $photoStat = Get-ClassicWindowsPhotoViewerStatus
+        $usbStat = Get-UsbPowerSavingStatus
+        $maintStat = Get-WindowsAutomaticMaintenanceStatus
+        $homeStat = Get-ExplorerHomeVisibilityStatus
+
+        Write-OptimizerMenuItem -Number "1" -Title "Переключить контекстное меню (Классическое Win10 / Новое Win11)" `
+            -IsActive $classicStat.Enabled -ActiveTag "[АКТИВНО (Win10 Style)]" -InactiveTag "[НЕ АКТИВНО (Win11 Дефолт)]"
+
+        Write-OptimizerMenuItem -Number "2" -Title "Настроить Проводник (расширения, скрытые файлы, компактный вид)" `
+            -IsActive $expStat.Optimal -ActiveTag "[АКТИВНО (Компактный + расширения)]" -InactiveTag "[НЕ АКТИВНО (Дефолт)]"
+
+        Write-OptimizerMenuItem -Number "3" -Title "Оптимизировать GameDVR (отключить фоновую запись, FSE mode)" `
+            -IsActive $gDvrStat.Disabled -ActiveTag "[АКТИВНО (Запись отключена / FSE)]" -InactiveTag "[НЕ АКТИВНО (Дефолт)]"
+
+        Write-OptimizerMenuItem -Number "4" -Title "Активировать классический Просмотр Фотографий Windows" `
+            -IsActive $photoStat.Enabled -ActiveTag "[АКТИВНО (PhotoViewer.dll)]" -InactiveTag "[НЕ АКТИВНО (Дефолт UWP)]"
+
+        Write-OptimizerMenuItem -Number "5" -Title "Отключить энергосбережение USB (защита от лагов мыши)" `
+            -IsActive $usbStat.Disabled -ActiveTag "[АКТИВНО (Спящий режим USB выключен)]" -InactiveTag "[НЕ АКТИВНО (USB засыпает)]"
+
+        Write-OptimizerMenuItem -Number "6" -Title "Отключить автоматическое обслуживание Windows (Maintenance)" `
+            -IsActive $maintStat.Disabled -ActiveTag "[АКТИВНО (Обслуживание отключено)]" -InactiveTag "[НЕ АКТИВНО (Дефолт)]"
+
+        Write-OptimizerMenuItem -Number "7" -Title "Скрыть/показать раздел 'Главная' (Home) в Проводнике" `
+            -IsActive $homeStat.Hidden -ActiveTag "[АКТИВНО (Раздел скрыт)]" -InactiveTag "[НЕ АКТИВНО (Отображается)]"
+
+        Write-Host ""
+        Write-Host "  [🚀] [8] Применить ВСЕ твики интерфейса" -ForegroundColor Green
+        Write-Host "  [0]  Назад в главное меню" -ForegroundColor Gray
+        Write-Host ""
+
+        $uiChoice = Read-Host "Шеф, выберите действие"
+        if ($uiChoice -eq "0" -or [string]::IsNullOrWhiteSpace($uiChoice)) { break }
+
+        switch ($uiChoice) {
+            "1" {
+                Set-ClassicContextMenu -Enable (-not $classicStat.Enabled)
+            }
+            "2" {
+                Set-FileExplorerTweaks
+            }
+            "3" {
+                Set-GameDvrOptimized
+            }
+            "4" {
+                Enable-ClassicWindowsPhotoViewer
+            }
+            "5" {
+                Disable-UsbPowerSaving
+            }
+            "6" {
+                Disable-WindowsAutomaticMaintenance
+            }
+            "7" {
+                Set-ExplorerHomeVisibility -Hide (-not $homeStat.Hidden)
+            }
+            "8" {
+                New-OptimizerRestorePoint -Description "SystemUI" | Out-Null
+                Set-FileExplorerTweaks -NoRestart
+                Set-GameDvrOptimized
+                Enable-ClassicWindowsPhotoViewer
+                Disable-UsbPowerSaving
+                Disable-WindowsAutomaticMaintenance
+                Set-ClassicContextMenu -Enable $true
+            }
+            default {
+                Write-Host "Неверный выбор." -ForegroundColor Yellow
+            }
+        }
+        Write-Host "`nНажмите Enter для возврата в меню..."; Read-Host | Out-Null
+    }
+}
+
 # Главный интерактивный цикл TUI
 while ($true) {
     Clear-Host
@@ -197,206 +578,19 @@ while ($true) {
             Write-Host "`nНажмите Enter для возврата в меню..."; Read-Host | Out-Null
         }
         "3" {
-            Clear-Host
-            Write-Host "==========================================================================" -ForegroundColor Cyan
-            Write-Host "            ЖЁСТКАЯ ОПТИМИЗАЦИЯ И НИЗКАЯ ЗАДЕРЖКА (LOW LATENCY)           " -ForegroundColor White
-            Write-Host "==========================================================================" -ForegroundColor Cyan
-            Write-Host "  [1] Настроить MSI Mode для GPU, Сети и Звука (High Priority)" -ForegroundColor White
-            Write-Host "  [2] Отключить Power Throttling и настроить кванты CPU (Win32Priority)" -ForegroundColor White
-            Write-Host "  [3] Активировать схему питания 'Максимальная производительность' (Ultimate)" -ForegroundColor White
-            Write-Host "  [4] Настроить SystemResponsiveness (0% резерва, 100% играм)" -ForegroundColor White
-            Write-Host "  [5] Очистить Standby RAM кэш и Working Sets (мгновенное освобождение ОЗУ)" -ForegroundColor Cyan
-            Write-Host "  [6] Переключить изоляцию ядра (VBS / HVCI) [С предупреждением]" -ForegroundColor White
-            Write-Host "  [7] Применить ВСЕ твики низкой задержки разом" -ForegroundColor Green
-            Write-Host "  [0] Назад" -ForegroundColor Gray
-            Write-Host ""
-            $llChoice = Read-Host "Действие"
-            if ($llChoice -eq "1") {
-                New-OptimizerRestorePoint -Description "MSIMode" | Out-Null
-                Set-GamingMsiMode
-            } elseif ($llChoice -eq "2") {
-                New-OptimizerRestorePoint -Description "CpuScheduling" | Out-Null
-                Set-CpuGamingScheduling
-            } elseif ($llChoice -eq "3") {
-                Enable-UltimatePerformancePlan
-            } elseif ($llChoice -eq "4") {
-                New-OptimizerRestorePoint -Description "SystemResponsiveness" | Out-Null
-                Set-SystemResponsivenessGaming
-            } elseif ($llChoice -eq "5") {
-                Clear-StandbyRamAndWorkingSet | Out-Null
-            } elseif ($llChoice -eq "6") {
-                $curVbs = Get-VbsStatus
-                $enableVbs = -not $curVbs.VbsActive
-                Set-VbsState -Enable $enableVbs
-            } elseif ($llChoice -eq "7") {
-                New-OptimizerRestorePoint -Description "HardcoreLowLatency" | Out-Null
-                Set-GamingMsiMode
-                Set-CpuGamingScheduling
-                Enable-UltimatePerformancePlan
-                Set-SystemResponsivenessGaming
-                Clear-StandbyRamAndWorkingSet | Out-Null
-            }
-            Write-Host "`nНажмите Enter для возврата в меню..."; Read-Host | Out-Null
+            Show-HardcoreGamingMenu
         }
         "4" {
-            Clear-Host
-            Write-Host "==========================================================================" -ForegroundColor Cyan
-            Write-Host "                       ОПТИМИЗАЦИЯ СЕТЕВОГО СТЕКА                         " -ForegroundColor White
-            Write-Host "==========================================================================" -ForegroundColor Cyan
-            Write-Host "  [1] Отключить алгоритм Нейгла (TcpAckFrequency=1, TCPNoDelay=1)" -ForegroundColor White
-            Write-Host "  [2] Настроить RSS, отключить timestamps и ECN (минимизация джиттера)" -ForegroundColor White
-            Write-Host "  [3] Gaming DNS Benchmark & DoH Switcher (Cloudflare, Quad9, AdGuard, Google)" -ForegroundColor Cyan
-            Write-Host "  [4] Сбросить / Откатить DNS (DHCP роутера или резервная копия)" -ForegroundColor Yellow
-            Write-Host "  [5] Применить ПОЛНЫЙ сетевой комплекс" -ForegroundColor Green
-            Write-Host "  [0] Назад" -ForegroundColor Gray
-            Write-Host ""
-            $netChoice = Read-Host "Действие"
-            if ($netChoice -eq "1" -or $netChoice -eq "2" -or $netChoice -eq "5") {
-                New-OptimizerRestorePoint -Description "NetworkStack" | Out-Null
-                Set-GamingNetworkStack
-            } elseif ($netChoice -eq "3") {
-                Show-DnsBenchmarkAndSwitcherMenu
-            } elseif ($netChoice -eq "4") {
-                Restore-GamingDns | Out-Null
-            }
-            Write-Host "`nНажмите Enter для возврата в меню..."; Read-Host | Out-Null
+            Show-NetworkMenu
         }
         "5" {
-            Clear-Host
-            $curMpo = Get-MpoStatus
-            $curHags = Get-HagsStatus
-            $dxProp = (Get-ItemProperty "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences" -ErrorAction SilentlyContinue)
-            $curDx = ($dxProp -and $dxProp.PSObject.Properties['DirectXUserGlobalSettings'] -and ($dxProp.DirectXUserGlobalSettings -like "*AutoPlayMode=1*"))
-            $wuProp = (Get-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -ErrorAction SilentlyContinue)
-            $curWu = ($wuProp -and $wuProp.PSObject.Properties['ExcludeWUDriversInQualityUpdate'] -and $wuProp.ExcludeWUDriversInQualityUpdate -eq 1)
-            $nvKeys = @(Get-NvidiaDisplayAdapterKeys)
-            $curHdcp = $false
-            if ($nvKeys.Count -gt 0) {
-                $p = Get-ItemProperty -Path $nvKeys[0].RegistryPath -ErrorAction SilentlyContinue
-                if ($p -and $p.PSObject.Properties['RMHdcpKeyglobZero'] -and $p.RMHdcpKeyglobZero -eq 1) { $curHdcp = $true }
-            }
-
-            $mpoTag  = if ($curMpo.Disabled) { "[ОТКЛЮЧЕН (Оптимально)]" } else { "[ВКЛЮЧЕН (Дефолт)]" }
-            $hagsTag = if ($curHags.Enabled) { "[ВКЛЮЧЕН (Оптимально)]" } else { "[ВЫКЛЮЧЕН]" }
-            $dxTag   = if ($curDx) { "[ВКЛЮЧЕНО (AutoPlayMode=1)]" } else { "[ВЫКЛЮЧЕНО]" }
-            $wuTag   = if ($curWu) { "[ЗАЩИЩЕН (ExcludeWU=1)]" } else { "[НЕ ЗАЩИЩЕН]" }
-            $hdcpTag = if ($nvKeys.Count -eq 0) { "[Н/Д (GPU не NVIDIA)]" } elseif ($curHdcp) { "[DRM ОТКЛЮЧЕН (Оптимально)]" } else { "[DRM АКТИВЕН]" }
-
-            Write-Host "==========================================================================" -ForegroundColor Cyan
-            Write-Host "                 GPU, ДИСПЛЕЙ И КЭШ ШЕЙДЕРОВ (LOW INPUT LAG)              " -ForegroundColor White
-            Write-Host "==========================================================================" -ForegroundColor Cyan
-            Write-Host "  [1] Переключить MPO (OverlayTestMode=5)                $mpoTag" -ForegroundColor White
-            Write-Host "  [2] Переключить HAGS (Hardware GPU Scheduling)         $hagsTag" -ForegroundColor White
-            Write-Host "  [3] Переключить оконные оптимизации DirectX            $dxTag" -ForegroundColor White
-            Write-Host "  [4] Переключить защиту видеодрайвера Windows Update    $wuTag" -ForegroundColor White
-            Write-Host "  [5] Переключить NVIDIA HDCP DRM (RMHdcpKeyglobZero)    $hdcpTag" -ForegroundColor White
-            Write-Host "  [6] Очистить кэш шейдеров DirectX/OpenGL и TEMP        (Освобождение диска)" -ForegroundColor Cyan
-            Write-Host "  [7] Применить ВСЕ оптимизации GPU и дисплея разом" -ForegroundColor Green
-            Write-Host "  [8] Откатить ВСЕ параметры GPU и дисплея к дефолтам" -ForegroundColor Yellow
-            Write-Host "  [0] Назад" -ForegroundColor Gray
-            Write-Host ""
-            $gpuChoice = Read-Host "Действие"
-            if ($gpuChoice -eq "1") {
-                Set-MpoState -Disable (-not $curMpo.Disabled)
-            } elseif ($gpuChoice -eq "2") {
-                Set-HagsState -Enable (-not $curHags.Enabled)
-            } elseif ($gpuChoice -eq "3") {
-                Set-DirectXWindowedOptimization -Enable (-not $curDx)
-            } elseif ($gpuChoice -eq "4") {
-                Set-WindowsUpdateDriverProtection -Enable (-not $curWu)
-            } elseif ($gpuChoice -eq "5") {
-                Set-NvidiaHdcpDisable -Disable (-not $curHdcp)
-            } elseif ($gpuChoice -eq "6") {
-                Clear-ShaderCacheAndTemp | Out-Null
-            } elseif ($gpuChoice -eq "7") {
-                New-OptimizerRestorePoint -Description "FullGpuDisplay" | Out-Null
-                Invoke-FullGpuDisplayOptimization
-            } elseif ($gpuChoice -eq "8") {
-                Restore-AllGpuDisplaySettings
-            }
-            Write-Host "`nНажмите Enter для возврата в меню..."; Read-Host | Out-Null
+            Show-GpuMenu
         }
         "6" {
-            Clear-Host
-            Write-Host "==========================================================================" -ForegroundColor Cyan
-            Write-Host "                         SMART MODERN DEBLOAT                             " -ForegroundColor White
-            Write-Host "==========================================================================" -ForegroundColor Cyan
-            Write-Host "  [1] Отключить AI Recall (Windows 11 24H2)" -ForegroundColor White
-            Write-Host "  [2] Отключить Microsoft Copilot" -ForegroundColor White
-            Write-Host "  [3] Отключить веб-поиск Bing и спам в меню Пуск" -ForegroundColor White
-            Write-Host "  [4] Отключить виджеты и новости на панели задач" -ForegroundColor White
-            Write-Host "  [5] Отключить фоновую телеметрию и сбор данных (DiagTrack)" -ForegroundColor White
-            Write-Host "  [6] Безопасно удалить предустановленный UWP-мусор (Store/Xbox целы)" -ForegroundColor White
-            Write-Host "  [7] Выполнить ПОЛНЫЙ безопасный Debloat" -ForegroundColor Green
-            Write-Host "  [0] Назад" -ForegroundColor Gray
-            Write-Host ""
-            $debChoice = Read-Host "Действие"
-            if ($debChoice -eq "1") { Disable-Win11Recall }
-            elseif ($debChoice -eq "2") { Disable-Win11Copilot }
-            elseif ($debChoice -eq "3") { Disable-BingSearchAndCortana }
-            elseif ($debChoice -eq "4") { Disable-WidgetsAndNews }
-            elseif ($debChoice -eq "5") { Disable-TelemetryAndDiagnostics }
-            elseif ($debChoice -eq "6") { Remove-SafeBloatwareApps }
-            elseif ($debChoice -eq "7") {
-                New-OptimizerRestorePoint -Description "FullDebloat" | Out-Null
-                Disable-Win11Recall
-                Disable-Win11Copilot
-                Disable-BingSearchAndCortana
-                Disable-WidgetsAndNews
-                Disable-TelemetryAndDiagnostics
-                Remove-SafeBloatwareApps
-            }
-            Write-Host "`nНажмите Enter для возврата в меню..."; Read-Host | Out-Null
+            Show-DebloatMenu
         }
         "7" {
-            Clear-Host
-            Write-Host "==========================================================================" -ForegroundColor Cyan
-            Write-Host "                     ИНТЕРФЕЙС И СИСТЕМНЫЕ ТВКИ                           " -ForegroundColor White
-            Write-Host "==========================================================================" -ForegroundColor Cyan
-            Write-Host "  [1] Переключить контекстное меню (Классическое Win10 / Новое Win11)" -ForegroundColor White
-            Write-Host "  [2] Настроить Проводник (расширения, скрытые файлы, убрать галерею/рекомендации)" -ForegroundColor White
-            Write-Host "  [3] Оптимизировать GameDVR (отключить фоновую запись, FSE mode)" -ForegroundColor White
-            Write-Host "  [4] Активировать классический Просмотр Фотографий Windows" -ForegroundColor White
-            Write-Host "  [5] Отключить энергосбережение USB (защита от лагов мыши)" -ForegroundColor White
-            Write-Host "  [6] Отключить автоматическое обслуживание Windows (Maintenance)" -ForegroundColor White
-            Write-Host "  [7] Скрыть/показать раздел 'Главная' (Home) в Проводнике" -ForegroundColor White
-            Write-Host "  [8] Применить ВСЕ твики интерфейса" -ForegroundColor Green
-            Write-Host "  [0] Назад" -ForegroundColor Gray
-            Write-Host ""
-            $uiChoice = Read-Host "Действие"
-            if ($uiChoice -eq "1") {
-                $isClassic = Test-Path "HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32"
-                Set-ClassicContextMenu -Enable (-not $isClassic)
-            } elseif ($uiChoice -eq "2") {
-                Set-FileExplorerTweaks
-            } elseif ($uiChoice -eq "3") {
-                Set-GameDvrOptimized
-            } elseif ($uiChoice -eq "4") {
-                Enable-ClassicWindowsPhotoViewer
-            } elseif ($uiChoice -eq "5") {
-                Disable-UsbPowerSaving
-            } elseif ($uiChoice -eq "6") {
-                Disable-WindowsAutomaticMaintenance
-            } elseif ($uiChoice -eq "7") {
-                $homeClsidKey = "HKLM:\SOFTWARE\Classes\CLSID\{f874310e-b6b7-47dc-bc84-b9e6b38f5903}"
-                $isPinned = 1
-                if (Test-Path $homeClsidKey) {
-                    $prop = Get-ItemProperty -Path $homeClsidKey -ErrorAction SilentlyContinue
-                    if ($prop -and $null -ne $prop.PSObject.Properties['System.IsPinnedToNameSpaceTree']) {
-                        $isPinned = [int]$prop.'System.IsPinnedToNameSpaceTree'
-                    }
-                }
-                Set-ExplorerHomeVisibility -Hide ($isPinned -eq 1)
-            } elseif ($uiChoice -eq "8") {
-                New-OptimizerRestorePoint -Description "SystemUI" | Out-Null
-                Set-FileExplorerTweaks -NoRestart
-                Set-GameDvrOptimized
-                Enable-ClassicWindowsPhotoViewer
-                Disable-UsbPowerSaving
-                Disable-WindowsAutomaticMaintenance
-                Set-ClassicContextMenu -Enable $true
-            }
-            Write-Host "`nНажмите Enter для возврата в меню..."; Read-Host | Out-Null
+            Show-InterfaceMenu
         }
         "8" {
             Show-AppInstallerMenu

@@ -267,8 +267,9 @@ function Disable-UsbPowerSaving {
     }
 
     try {
-        # 1. Отключение USB Selective Suspend через powercfg для текущей схемы
-        powercfg -setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4760-a579-e51165ddce75 0 2>&1 | Out-Null
+        # 1. Отключение USB Selective Suspend через powercfg для текущей схемы (AC и DC)
+        powercfg -setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0 2>&1 | Out-Null
+        powercfg -setdcvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0 2>&1 | Out-Null
         powercfg -setactive SCHEME_CURRENT 2>&1 | Out-Null
         Write-Host "  [OK] USB Selective Suspend отключен в схеме электропитания" -ForegroundColor Green
 
@@ -408,7 +409,8 @@ function Restore-SystemUISettings {
     Set-ClassicContextMenu -Enable $false -NoRestart
 
     # Восстановление USB Selective Suspend в схеме питания (дефолт = 1 / включен)
-    powercfg -setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4760-a579-e51165ddce75 1 2>&1 | Out-Null
+    powercfg -setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 1 2>&1 | Out-Null
+    powercfg -setdcvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 1 2>&1 | Out-Null
     powercfg -setactive SCHEME_CURRENT 2>&1 | Out-Null
 
     # Восстановление раздела Главная
@@ -424,8 +426,125 @@ function Restore-SystemUISettings {
     Write-Host "[SystemUI] Настройки интерфейса успешно восстановлены." -ForegroundColor Green
 }
 
+function Get-UsbPowerSavingStatus {
+    [CmdletBinding()]
+    param()
+
+    $isOptimal = $false
+    try {
+        $active = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes" -ErrorAction SilentlyContinue).ActivePowerScheme
+        if ($active) {
+            $usbKey = "HKLM:\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\$active\2a737441-1930-4402-8d77-b2bebba308a3\48e6b7a6-50f5-4782-a5d4-53bb8f07e226"
+            $p = Get-ItemProperty -Path $usbKey -ErrorAction SilentlyContinue
+            if ($p -and $null -ne $p.PSObject.Properties['ACSettingIndex'] -and $p.ACSettingIndex -eq 0) {
+                $isOptimal = $true
+            }
+        }
+        if (-not $isOptimal) {
+            $wmi = Get-CimInstance -ClassName MSPower_DeviceEnable -Namespace root\wmi -ErrorAction SilentlyContinue
+            if ($wmi -and @($wmi | Where-Object { $_.Enable -eq $true }).Count -eq 0) {
+                $isOptimal = $true
+            }
+        }
+    } catch {}
+
+    return [PSCustomObject]@{
+        Disabled    = $isOptimal
+        Optimal     = $isOptimal
+        Description = if ($isOptimal) { "Отключено (Спящий режим USB выключен, защита от лагов)" } else { "Включено (USB засыпает)" }
+    }
+}
+
+function Get-ClassicContextMenuStatus {
+    [CmdletBinding()]
+    param()
+
+    $isClassic = Test-Path "HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32"
+    return [PSCustomObject]@{
+        Enabled     = $isClassic
+        Optimal     = $isClassic
+        Description = if ($isClassic) { "Классическое (Win10 Style)" } else { "Стандартное (Win11)" }
+    }
+}
+
+function Get-FileExplorerTweaksStatus {
+    [CmdletBinding()]
+    param()
+
+    $adv = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -ErrorAction SilentlyContinue
+    $isOpt = ($adv -and $adv.PSObject.Properties['HideFileExt'] -and $adv.HideFileExt -eq 0 -and $adv.PSObject.Properties['UseCompactMode'] -and $adv.UseCompactMode -eq 1)
+    return [PSCustomObject]@{
+        Optimal     = [bool]$isOpt
+        Description = if ($isOpt) { "Оптимизирован (Компактный вид, расширения включены)" } else { "Стандартный (Дефолт)" }
+    }
+}
+
+function Get-GameDvrStatus {
+    [CmdletBinding()]
+    param()
+
+    $gcs = Get-ItemProperty "HKCU:\System\GameConfigStore" -ErrorAction SilentlyContinue
+    $isOff = ($gcs -and $gcs.PSObject.Properties['GameDVR_Enabled'] -and $gcs.GameDVR_Enabled -eq 0)
+    return [PSCustomObject]@{
+        Disabled    = [bool]$isOff
+        Optimal     = [bool]$isOff
+        Description = if ($isOff) { "Фоновая запись отключена (FSE нативный режим)" } else { "Фоновая запись активна (Дефолт)" }
+    }
+}
+
+function Get-ClassicWindowsPhotoViewerStatus {
+    [CmdletBinding()]
+    param()
+
+    $baseKey = "HKLM:\SOFTWARE\Microsoft\Windows Photo Viewer\Capabilities\FileAssociations"
+    $p = Get-ItemProperty -Path $baseKey -ErrorAction SilentlyContinue
+    $isOpt = ($p -and $p.PSObject.Properties['.jpg'] -and $p.'.jpg' -eq "PhotoViewer.FileAssoc.Tiff")
+    return [PSCustomObject]@{
+        Enabled     = [bool]$isOpt
+        Optimal     = [bool]$isOpt
+        Description = if ($isOpt) { "Активирован (PhotoViewer.dll)" } else { "Стандартный (UWP Photos)" }
+    }
+}
+
+function Get-WindowsAutomaticMaintenanceStatus {
+    [CmdletBinding()]
+    param()
+
+    $maint = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\Maintenance" -ErrorAction SilentlyContinue
+    $isOff = ($maint -and $maint.PSObject.Properties['MaintenanceDisabled'] -and $maint.MaintenanceDisabled -eq 1)
+    return [PSCustomObject]@{
+        Disabled    = [bool]$isOff
+        Optimal     = [bool]$isOff
+        Description = if ($isOff) { "Отключено (Предотвращает внезапный троттлинг)" } else { "Включено (Дефолт)" }
+    }
+}
+
+function Get-ExplorerHomeVisibilityStatus {
+    [CmdletBinding()]
+    param()
+
+    $homeClsidKey = "HKLM:\SOFTWARE\Classes\CLSID\{f874310e-b6b7-47dc-bc84-b9e6b38f5903}"
+    $nsHome1Exists = Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Desktop\NameSpace\{f874310e-b6b7-47dc-bc84-b9e6b38f5903}"
+    $isHidden = $false
+    if (Test-Path $homeClsidKey) {
+        $prop = Get-ItemProperty -Path $homeClsidKey -ErrorAction SilentlyContinue
+        if ($prop -and $null -ne $prop.PSObject.Properties['System.IsPinnedToNameSpaceTree']) {
+            $isHidden = ($prop.'System.IsPinnedToNameSpaceTree' -eq 0 -and -not $nsHome1Exists)
+        }
+    }
+    return [PSCustomObject]@{
+        Hidden      = [bool]$isHidden
+        Optimal     = [bool]$isHidden
+        Description = if ($isHidden) { "Скрыт (Чистое дерево навигации)" } else { "Отображается (Дефолт)" }
+    }
+}
+
 Export-ModuleMember -Function Set-ClassicContextMenu, Set-FileExplorerTweaks, `
                              Set-GameDvrOptimized, Enable-ClassicWindowsPhotoViewer, `
                              Disable-UsbPowerSaving, Disable-WindowsAutomaticMaintenance, `
                              Restore-WindowsAutomaticMaintenance, Set-ExplorerHomeVisibility, `
-                             Restore-SystemUISettings, Restart-ExplorerGraceful
+                             Restore-SystemUISettings, Restart-ExplorerGraceful, `
+                             Get-UsbPowerSavingStatus, Get-ClassicContextMenuStatus, `
+                             Get-FileExplorerTweaksStatus, Get-GameDvrStatus, `
+                             Get-ClassicWindowsPhotoViewerStatus, Get-WindowsAutomaticMaintenanceStatus, `
+                             Get-ExplorerHomeVisibilityStatus

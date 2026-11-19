@@ -371,7 +371,90 @@ function Restore-DebloatSettings {
     Write-Host "[Debloat] Параметры телеметрии, служб и интерфейса возвращены к значениям по умолчанию." -ForegroundColor Green
 }
 
+function Get-RecallStatus {
+    [CmdletBinding()]
+    param()
+
+    $recallKey = Get-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" -ErrorAction SilentlyContinue
+    $isRecallOff = ($recallKey -and $recallKey.PSObject.Properties['DisableAIDataAnalysis'] -and $recallKey.DisableAIDataAnalysis -eq 1)
+    return [PSCustomObject]@{
+        Disabled    = [bool]$isRecallOff
+        Optimal     = [bool]$isRecallOff
+        Description = if ($isRecallOff) { "Отключен (DisableAIDataAnalysis=1)" } else { "Включен (Дефолт)" }
+    }
+}
+
+function Get-CopilotStatus {
+    [CmdletBinding()]
+    param()
+
+    $copilot = Get-ItemProperty "HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot" -ErrorAction SilentlyContinue
+    $isCopilotOff = ($copilot -and $copilot.PSObject.Properties['TurnOffWindowsCopilot'] -and $copilot.TurnOffWindowsCopilot -eq 1)
+    return [PSCustomObject]@{
+        Disabled    = [bool]$isCopilotOff
+        Optimal     = [bool]$isCopilotOff
+        Description = if ($isCopilotOff) { "Отключен (TurnOffWindowsCopilot=1)" } else { "Включен (Дефолт)" }
+    }
+}
+
+function Get-BingSearchStatus {
+    [CmdletBinding()]
+    param()
+
+    $bSearch = Get-ItemProperty "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" -ErrorAction SilentlyContinue
+    $isBingOff = ($bSearch -and $bSearch.PSObject.Properties['BingSearchEnabled'] -and $bSearch.BingSearchEnabled -eq 0)
+    return [PSCustomObject]@{
+        Disabled    = [bool]$isBingOff
+        Optimal     = [bool]$isBingOff
+        Description = if ($isBingOff) { "Отключен (BingSearchEnabled=0)" } else { "Включен (Дефолт)" }
+    }
+}
+
+function Get-WidgetsStatus {
+    [CmdletBinding()]
+    param()
+
+    $dsh = Get-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\Dsh" -ErrorAction SilentlyContinue
+    $adv = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -ErrorAction SilentlyContinue
+    $isWidgetsOff = (($dsh -and $dsh.PSObject.Properties['AllowNewsAndInterests'] -and $dsh.AllowNewsAndInterests -eq 0) -or ($adv -and $adv.PSObject.Properties['TaskbarDa'] -and $adv.TaskbarDa -eq 0))
+    return [PSCustomObject]@{
+        Disabled    = [bool]$isWidgetsOff
+        Optimal     = [bool]$isWidgetsOff
+        Description = if ($isWidgetsOff) { "Отключены (Панель задач чиста)" } else { "Включены (Дефолт)" }
+    }
+}
+
+function Get-TelemetryStatus {
+    [CmdletBinding()]
+    param()
+
+    $diagTrack = Get-Service -Name "DiagTrack" -ErrorAction SilentlyContinue
+    $isTelemetryOff = ($diagTrack -and ($diagTrack.StartType -eq 'Disabled' -or $diagTrack.Status -ne 'Running'))
+    return [PSCustomObject]@{
+        Disabled    = [bool]$isTelemetryOff
+        Optimal     = [bool]$isTelemetryOff
+        Description = if ($isTelemetryOff) { "Отключена (DiagTrack остановлен)" } else { "Активна (Дефолт)" }
+    }
+}
+
+function Get-BloatwareStatus {
+    [CmdletBinding()]
+    param()
+
+    $bloatList = Get-InstalledBloatwareApps
+    $count = if ($bloatList) { $bloatList.Count } else { 0 }
+    $isClean = ($count -eq 0)
+    return [PSCustomObject]@{
+        Clean       = $isClean
+        Optimal     = $isClean
+        Count       = $count
+        Description = if ($isClean) { "Система чиста (Мусор не найден)" } else { "Обнаружено UWP-мусора: $count" }
+    }
+}
+
 Export-ModuleMember -Function Disable-Win11Recall, Disable-Win11Copilot, `
                              Disable-BingSearchAndCortana, Disable-WidgetsAndNews, `
                              Disable-TelemetryAndDiagnostics, Get-InstalledBloatwareApps, `
-                             Remove-SafeBloatwareApps, Restore-DebloatSettings
+                             Remove-SafeBloatwareApps, Restore-DebloatSettings, `
+                             Get-RecallStatus, Get-CopilotStatus, Get-BingSearchStatus, `
+                             Get-WidgetsStatus, Get-TelemetryStatus, Get-BloatwareStatus

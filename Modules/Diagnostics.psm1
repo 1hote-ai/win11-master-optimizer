@@ -7,6 +7,7 @@ Import-Module (Join-Path -Path $PSScriptRoot -ChildPath "GamingLatency.psm1") -E
 Import-Module (Join-Path -Path $PSScriptRoot -ChildPath "NetworkGaming.psm1") -ErrorAction SilentlyContinue
 Import-Module (Join-Path -Path $PSScriptRoot -ChildPath "SystemUI.psm1") -ErrorAction SilentlyContinue
 Import-Module (Join-Path -Path $PSScriptRoot -ChildPath "GpuDisplay.psm1") -ErrorAction SilentlyContinue
+Import-Module (Join-Path -Path $PSScriptRoot -ChildPath "Debloat.psm1") -ErrorAction SilentlyContinue
 
 $Script:ReportDir = Join-Path -Path $PSScriptRoot -ChildPath "..\Reports"
 
@@ -491,6 +492,18 @@ function Get-SystemOptimizationAudit {
         Optimal        = [bool]$isHomeHidden
         FixMenu        = "Главное меню -> Пункт [7] (Интерфейс и система) -> [7] или [2] (Супер-буст)"
         Recommendation = "Скрыть раздел 'Главная' из Проводника для чистого классического интерфейса."
+    })
+
+    # 27. Энергосбережение USB (Selective Suspend)
+    $usbStatus = Get-UsbPowerSavingStatus
+    $audit.Add([PSCustomObject]@{
+        Category       = "Интерфейс и Оборудование"
+        Setting        = "Энергосбережение USB (Selective Suspend)"
+        Status         = if ($usbStatus.Disabled) { "ОТКЛЮЧЕНО (Оптимально)" } else { "ВКЛЮЧЕНО (Дефолт)" }
+        Details        = $usbStatus.Description
+        Optimal        = [bool]$usbStatus.Disabled
+        FixMenu        = "Главное меню -> Пункт [7] (Интерфейс и система) -> [5] или Пункт [2] (Супер-буст)"
+        Recommendation = "Отключить спящие режимы USB для предотвращения микро-лагов и задержек мыши/клавиатуры."
     })
 
     return $audit

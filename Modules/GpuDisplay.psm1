@@ -457,6 +457,54 @@ function Restore-AllGpuDisplaySettings {
     Write-Host "`n[OK] Настройки GPU и дисплея полностью возвращены к дефолтным значениям Windows." -ForegroundColor Green
 }
 
+function Get-DirectXWindowedStatus {
+    [CmdletBinding()]
+    param()
+
+    $dxProp = (Get-ItemProperty "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences" -ErrorAction SilentlyContinue)
+    $curDx = ($dxProp -and $dxProp.PSObject.Properties['DirectXUserGlobalSettings'] -and ($dxProp.DirectXUserGlobalSettings -like "*AutoPlayMode=1*"))
+    return [PSCustomObject]@{
+        Optimal     = [bool]$curDx
+        Description = if ($curDx) { "Включено (AutoPlayMode=1, низкий инпут-лаг)" } else { "Выключено (Дефолт)" }
+    }
+}
+
+function Get-WindowsUpdateDriverProtectionStatus {
+    [CmdletBinding()]
+    param()
+
+    $wuProp = (Get-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -ErrorAction SilentlyContinue)
+    $curWu = ($wuProp -and $wuProp.PSObject.Properties['ExcludeWUDriversInQualityUpdate'] -and $wuProp.ExcludeWUDriversInQualityUpdate -eq 1)
+    return [PSCustomObject]@{
+        Protected   = [bool]$curWu
+        Optimal     = [bool]$curWu
+        Description = if ($curWu) { "Защищен (ExcludeWUDrivers=1)" } else { "Не защищен (Дефолт)" }
+    }
+}
+
+function Get-NvidiaHdcpStatus {
+    [CmdletBinding()]
+    param()
+
+    $nvKeys = @(Get-NvidiaDisplayAdapterKeys)
+    $hasNv = ($nvKeys.Count -gt 0)
+    $curHdcp = $false
+    if ($hasNv) {
+        $p = Get-ItemProperty -Path $nvKeys[0].RegistryPath -ErrorAction SilentlyContinue
+        if ($p -and $p.PSObject.Properties['RMHdcpKeyglobZero'] -and $p.RMHdcpKeyglobZero -eq 1) {
+            $curHdcp = $true
+        }
+    }
+    $isOpt = (-not $hasNv -or $curHdcp)
+    $desc = if (-not $hasNv) { "Н/Д (GPU не NVIDIA)" } elseif ($curHdcp) { "DRM отключен (RMHdcpKeyglobZero=1)" } else { "DRM активен (Дефолт)" }
+    return [PSCustomObject]@{
+        Optimal     = $isOpt
+        Disabled    = $curHdcp
+        IsNvidia    = $hasNv
+        Description = $desc
+    }
+}
+
 Export-ModuleMember -Function Get-NvidiaDisplayAdapterKeys, `
                              Get-MpoStatus, Set-MpoState, Restore-MpoState, `
                              Get-HagsStatus, Set-HagsState, Restore-HagsState, `
@@ -464,4 +512,6 @@ Export-ModuleMember -Function Get-NvidiaDisplayAdapterKeys, `
                              Set-WindowsUpdateDriverProtection, Restore-WindowsUpdateDriverProtection, `
                              Set-NvidiaHdcpDisable, Restore-NvidiaHdcp, `
                              Clear-ShaderCacheAndTemp, `
-                             Invoke-FullGpuDisplayOptimization, Restore-AllGpuDisplaySettings
+                             Invoke-FullGpuDisplayOptimization, Restore-AllGpuDisplaySettings, `
+                             Get-DirectXWindowedStatus, Get-WindowsUpdateDriverProtectionStatus, `
+                             Get-NvidiaHdcpStatus

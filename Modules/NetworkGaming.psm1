@@ -609,6 +609,64 @@ function Restore-GamingDns {
     }
 }
 
+function Get-NagleStatus {
+    [CmdletBinding()]
+    param()
+
+    $hasNagleDisabled = $false
+    $tcpInterfaces = Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces" -ErrorAction SilentlyContinue
+    if ($tcpInterfaces) {
+        foreach ($k in $tcpInterfaces) {
+            $p = Get-ItemProperty $k.PSPath -ErrorAction SilentlyContinue
+            if ($p -and $p.PSObject.Properties['TcpAckFrequency'] -and $p.TcpAckFrequency -eq 1 -and $p.PSObject.Properties['TCPNoDelay'] -and $p.TCPNoDelay -eq 1) {
+                $hasNagleDisabled = $true
+                break
+            }
+        }
+    }
+    return [PSCustomObject]@{
+        Disabled    = $hasNagleDisabled
+        Optimal     = $hasNagleDisabled
+        Description = if ($hasNagleDisabled) { "Отключен (TcpAckFrequency=1, TCPNoDelay=1)" } else { "Включен (Пакеты буферизуются)" }
+    }
+}
+
+function Get-NetworkGamingStackStatus {
+    [CmdletBinding()]
+    param()
+
+    $sysProfile = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" -ErrorAction SilentlyContinue
+    $isThrottlingOff = ($sysProfile -and $sysProfile.PSObject.Properties['NetworkThrottlingIndex'] -and $sysProfile.NetworkThrottlingIndex -eq 0xFFFFFFFF)
+    return [PSCustomObject]@{
+        Optimal     = [bool]$isThrottlingOff
+        Description = if ($isThrottlingOff) { "NetworkThrottlingIndex=0xFFFFFFFF (Троттлинг снят)" } else { "Стандартный сетевой троттлинг" }
+    }
+}
+
+function Get-GamingDnsStatus {
+    [CmdletBinding()]
+    param()
+
+    $activeNet = Get-PrimaryActiveNetworkInterface
+    $curDnsList = if ($activeNet -and $activeNet.CurrentDns) { @($activeNet.CurrentDns) } else { @() }
+    $fastDnsServers = @("1.1.1.1", "1.0.0.1", "9.9.9.9", "149.112.112.112", "94.140.14.14", "94.140.15.15", "8.8.8.8", "8.8.4.4")
+    $isFastDns = (@($curDnsList).Count -gt 0 -and @($curDnsList | Where-Object { $_ -in $fastDnsServers }).Count -gt 0)
+    $dnsProviderLabel = if ($isFastDns) {
+        if ($curDnsList -contains "1.1.1.1" -or $curDnsList -contains "1.0.0.1") { "Cloudflare (1.1.1.1)" }
+        elseif ($curDnsList -contains "9.9.9.9" -or $curDnsList -contains "149.112.112.112") { "Quad9 (9.9.9.9)" }
+        elseif ($curDnsList -contains "94.140.14.14" -or $curDnsList -contains "94.140.15.15") { "AdGuard" }
+        else { "Google (8.8.8.8)" }
+    } else {
+        if (@($curDnsList).Count -gt 0) { "Провайдер ($($curDnsList -join ', '))" } else { "Авто (DHCP)" }
+    }
+    return [PSCustomObject]@{
+        Optimal       = $isFastDns
+        ProviderLabel = $dnsProviderLabel
+        Description   = if ($isFastDns) { "Оптимизирован ($dnsProviderLabel)" } else { "Стандартный ($dnsProviderLabel)" }
+    }
+}
+
 Export-ModuleMember -Function Get-ActiveNetworkInterfaceGuids, Set-GamingNetworkStack, Restore-GamingNetworkStack, `
                              Get-NetworkPowerSavingStatus, Get-PrimaryActiveNetworkInterface, `
-                             Test-GamingDnsBenchmark, Set-GamingDns, Reset-GamingDns, Restore-GamingDns, Show-DnsBenchmarkAndSwitcherMenu
+                             Test-GamingDnsBenchmark, Set-GamingDns, Reset-GamingDns, Restore-GamingDns, Show-DnsBenchmarkAndSwitcherMenu, `
+                             Get-NagleStatus, Get-NetworkGamingStackStatus, Get-GamingDnsStatus

@@ -525,8 +525,72 @@ function Clear-StandbyRamAndWorkingSet {
     }
 }
 
+function Get-MsiModeStatus {
+    [CmdletBinding()]
+    param()
+
+    $pci = @(Get-PciMsiDevices)
+    $gpu = @($pci | Where-Object { $_.Category -eq 'GPU' })
+    $net = @($pci | Where-Object { $_.Category -eq 'Network' })
+    $gpuOk = ($gpu.Count -gt 0 -and @($gpu | Where-Object { $_.MsiActive }).Count -eq $gpu.Count)
+    $netOk = ($net.Count -gt 0 -and @($net | Where-Object { $_.MsiActive }).Count -eq $net.Count)
+    $isOptimal = ($gpuOk -and $netOk)
+    return [PSCustomObject]@{
+        Optimal     = $isOptimal
+        GpuMsi      = $gpuOk
+        NetworkMsi  = $netOk
+        Description = if ($isOptimal) { "MSI High Priority активен (GPU & Сеть)" } else { "Дефолтный режим IRQ (Line-based)" }
+    }
+}
+
+function Get-CpuGamingSchedulingStatus {
+    [CmdletBinding()]
+    param()
+
+    $priCtrl = Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" -ErrorAction SilentlyContinue
+    $win32Pri = if ($priCtrl -and $null -ne $priCtrl.PSObject.Properties['Win32PrioritySeparation']) { [int]$priCtrl.Win32PrioritySeparation } else { 2 }
+    $pThrottle = Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling" -ErrorAction SilentlyContinue
+    $isPtOff = ($pThrottle -and $pThrottle.PSObject.Properties['PowerThrottlingOff'] -and $pThrottle.PowerThrottlingOff -eq 1)
+    $isOpt = (($win32Pri -eq 38 -or $win32Pri -eq 40) -and $isPtOff)
+    return [PSCustomObject]@{
+        Optimal                 = $isOpt
+        Win32PrioritySeparation = $win32Pri
+        PowerThrottlingOff      = [bool]$isPtOff
+        Description             = if ($isOpt) { "Кванты 38 (0x26) + Power Throttling отключен" } else { "Стандартные кванты (Дефолт)" }
+    }
+}
+
+function Get-UltimatePerformancePlanStatus {
+    [CmdletBinding()]
+    param()
+
+    $activeSchemeGuid = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes' -ErrorAction SilentlyContinue).ActivePowerScheme
+    $activeSchemeName = (powercfg /getactivescheme 2>&1)
+    $isUltimate = ($activeSchemeName -like "*Максимальная производительность*" -or $activeSchemeName -like "*Ultimate Performance*" -or $activeSchemeGuid -eq "e9a42b02-d5df-448d-aa00-03f14749eb61")
+    return [PSCustomObject]@{
+        Active      = $isUltimate
+        Optimal     = $isUltimate
+        Description = if ($isUltimate) { "Схема 'Максимальная производительность' активна" } else { "Стандартная схема питания" }
+    }
+}
+
+function Get-SystemResponsivenessStatus {
+    [CmdletBinding()]
+    param()
+
+    $sysProfile = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" -ErrorAction SilentlyContinue
+    $isZero = ($sysProfile -and $sysProfile.PSObject.Properties['SystemResponsiveness'] -and $sysProfile.SystemResponsiveness -eq 0)
+    return [PSCustomObject]@{
+        Optimal     = [bool]$isZero
+        Value       = if ($sysProfile -and $null -ne $sysProfile.PSObject.Properties['SystemResponsiveness']) { [int]$sysProfile.SystemResponsiveness } else { 20 }
+        Description = if ($isZero) { "0% резерва (100% мощности процессора играм)" } else { "20% системный резерв (Дефолт)" }
+    }
+}
+
 Export-ModuleMember -Function Get-PciMsiDevices, Set-GamingMsiMode, Restore-GamingMsiMode, `
                              Set-CpuGamingScheduling, Restore-CpuGamingScheduling, `
                              Enable-UltimatePerformancePlan, `
                              Set-SystemResponsivenessGaming, Restore-SystemResponsiveness, `
-                             Get-VbsStatus, Set-VbsState, Clear-StandbyRamAndWorkingSet
+                             Get-VbsStatus, Set-VbsState, Clear-StandbyRamAndWorkingSet, `
+                             Get-MsiModeStatus, Get-CpuGamingSchedulingStatus, `
+                             Get-UltimatePerformancePlanStatus, Get-SystemResponsivenessStatus

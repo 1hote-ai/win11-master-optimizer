@@ -279,6 +279,67 @@ Assert-Test "Preset: AutoGamingPreset dry-run completes without error" {
     $true
 }
 
+# 10. Live Dynamic Status Query & Indicator Tests
+Assert-Test "Status Queries: SystemUI status functions (USB, Context Menu, Explorer, GameDVR, Maintenance)" {
+    $usb = Get-UsbPowerSavingStatus
+    $menu = Get-ClassicContextMenuStatus
+    $exp = Get-FileExplorerTweaksStatus
+    $dvr = Get-GameDvrStatus
+    $photo = Get-ClassicWindowsPhotoViewerStatus
+    $maint = Get-WindowsAutomaticMaintenanceStatus
+    $homeStat = Get-ExplorerHomeVisibilityStatus
+
+    ($null -ne $usb.Disabled) -and ($null -ne $menu.Enabled) -and ($null -ne $exp.Optimal) -and `
+    ($null -ne $dvr.Disabled) -and ($null -ne $photo.Enabled) -and ($null -ne $maint.Disabled) -and ($null -ne $homeStat.Hidden)
+}
+
+Assert-Test "Status Queries: GamingLatency status functions (MSI, CPU, Power Plan, Responsiveness)" {
+    $msi = Get-MsiModeStatus
+    $cpu = Get-CpuGamingSchedulingStatus
+    $pwr = Get-UltimatePerformancePlanStatus
+    $sys = Get-SystemResponsivenessStatus
+
+    ($null -ne $msi.Optimal) -and ($null -ne $cpu.Optimal) -and ($null -ne $pwr.Optimal) -and ($null -ne $sys.Optimal)
+}
+
+Assert-Test "Status Queries: NetworkGaming status functions (Nagle, Stack, DNS)" {
+    $nagle = Get-NagleStatus
+    $stack = Get-NetworkGamingStackStatus
+    $dns = Get-GamingDnsStatus
+
+    ($null -ne $nagle.Disabled) -and ($null -ne $stack.Optimal) -and ($null -ne $dns.Optimal)
+}
+
+Assert-Test "Status Queries: GpuDisplay status functions (DirectX, WU Driver, HDCP)" {
+    $dx = Get-DirectXWindowedStatus
+    $wu = Get-WindowsUpdateDriverProtectionStatus
+    $hdcp = Get-NvidiaHdcpStatus
+
+    ($null -ne $dx.Optimal) -and ($null -ne $wu.Protected) -and ($null -ne $hdcp.Optimal)
+}
+
+Assert-Test "Status Queries: Debloat status functions (Recall, Copilot, Bing, Widgets, Telemetry, Bloatware)" {
+    $recall = Get-RecallStatus
+    $copilot = Get-CopilotStatus
+    $bing = Get-BingSearchStatus
+    $widgets = Get-WidgetsStatus
+    $telem = Get-TelemetryStatus
+    $bloat = Get-BloatwareStatus
+
+    ($null -ne $recall.Disabled) -and ($null -ne $copilot.Disabled) -and ($null -ne $bing.Disabled) -and `
+    ($null -ne $widgets.Disabled) -and ($null -ne $telem.Disabled) -and ($null -ne $bloat.Clean)
+}
+
+Assert-Test "Submenu Architecture: Interactive optimization submenu functions exist" {
+    $scriptContent = Get-Content -Path (Join-Path $ScriptDir "Win11Optimizer.ps1") -Raw
+    ($scriptContent -match 'function Show-HardcoreGamingMenu') -and `
+    ($scriptContent -match 'function Show-NetworkMenu') -and `
+    ($scriptContent -match 'function Show-GpuMenu') -and `
+    ($scriptContent -match 'function Show-DebloatMenu') -and `
+    ($scriptContent -match 'function Show-InterfaceMenu') -and `
+    ($scriptContent -match 'function Write-OptimizerMenuItem')
+}
+
 Write-Host "========================================================" -ForegroundColor Cyan
 Write-Host "  TEST RESULTS: Passed: $passedTests | Failed: $failedTests" -ForegroundColor $(if ($failedTests -eq 0) { "Green" } else { "Red" })
 Write-Host "========================================================`n" -ForegroundColor Cyan
