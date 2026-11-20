@@ -68,7 +68,7 @@ Release archives built via `tools/Build-ReleasePackage.ps1` include automated SH
 
 | Asset Name | Size | SHA-256 Checksum |
 | :--- | :--- | :--- |
-| `win11-master-optimizer-v0.1.0-beta.zip` | 204.77 KB | `743D45628CE756D17C48E4D69BC3A0B40793930F3CB81A517FA08CC0C417FB95` |
+| `win11-master-optimizer-v0.1.0-beta.zip` | 205.97 KB | `D2E53A77A1F31D199B1AF2B7A1986B886BDC2938E2FE63CF9F09D5BA18A1DD07` |
 
 *To verify checksum in PowerShell:*
 ```powershell
