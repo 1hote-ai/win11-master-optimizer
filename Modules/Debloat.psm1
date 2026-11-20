@@ -239,10 +239,19 @@ function Disable-TelemetryAndDiagnostics {
         foreach ($srvName in $telemetryServices) {
             $srv = Get-Service -Name $srvName -ErrorAction SilentlyContinue
             if ($srv) {
+                # Точное определение типа запуска с поддержкой AutomaticDelayedStart
+                $startType = $srv.StartType.ToString()
+                $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$srvName"
+                if (Test-Path $regPath) {
+                    $delayed = (Get-ItemProperty -Path $regPath -Name "DelayedAutostart" -ErrorAction SilentlyContinue).DelayedAutostart
+                    if ($delayed -eq 1 -and $startType -eq "Automatic") {
+                        $startType = "AutomaticDelayedStart"
+                    }
+                }
                 $savedServices += [PSCustomObject]@{
                     Name        = $srv.Name
                     Exists      = $true
-                    StartupType = $srv.StartType.ToString()
+                    StartupType = $startType
                     Status      = $srv.Status.ToString()
                 }
             } else {
@@ -281,10 +290,12 @@ function Disable-TelemetryAndDiagnostics {
             $leaf = Split-Path $t -Leaf
             $task = Get-ScheduledTask -TaskPath $normPath -TaskName $leaf -ErrorAction SilentlyContinue
             if ($task) {
+                $isEnabled = ($null -ne $task.Settings -and $task.Settings.Enabled -eq $true)
                 $savedTasks += [PSCustomObject]@{
                     TaskPath = $normPath
                     TaskName = $leaf
                     Exists   = $true
+                    Enabled  = [bool]$isEnabled
                     State    = $task.State.ToString()
                 }
             } else {
@@ -292,6 +303,7 @@ function Disable-TelemetryAndDiagnostics {
                     TaskPath = $normPath
                     TaskName = $leaf
                     Exists   = $false
+                    Enabled  = $false
                     State    = "NotFound"
                 }
             }
@@ -396,19 +408,66 @@ function Restore-DebloatSettings {
 
     # Точное восстановление исходного состояния служб телеметрии
     $srvSnap = Get-LatestStateSnapshot -Category "TelemetryServices"
+    $servicesRestoredCleanly = $true
     if ($srvSnap -and $srvSnap.StateData) {
         foreach ($s in $srvSnap.StateData) {
             if ($s.Exists) {
                 try {
-                    Set-Service -Name $s.Name -StartupType $s.StartupType -ErrorAction SilentlyContinue
+                    $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$($s.Name)"
+                    switch ($s.StartupType) {
+                        "AutomaticDelayedStart" {
+                            Set-Service -Name $s.Name -StartupType Automatic -ErrorAction Stop
+                            if (Test-Path $regPath) {
+                                Set-ItemProperty -Path $regPath -Name "DelayedAutostart" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+                            }
+                        }
+                        "Automatic" {
+                            Set-Service -Name $s.Name -StartupType Automatic -ErrorAction Stop
+                            if (Test-Path $regPath) {
+                                Remove-ItemProperty -Path $regPath -Name "DelayedAutostart" -ErrorAction SilentlyContinue
+                            }
+                        }
+                        "Manual" {
+                            Set-Service -Name $s.Name -StartupType Manual -ErrorAction Stop
+                            if (Test-Path $regPath) {
+                                Remove-ItemProperty -Path $regPath -Name "DelayedAutostart" -ErrorAction SilentlyContinue
+                            }
+                        }
+                        "Disabled" {
+                            Set-Service -Name $s.Name -StartupType Disabled -ErrorAction Stop
+                        }
+                        Default {
+                            Set-Service -Name $s.Name -StartupType $s.StartupType -ErrorAction Stop
+                        }
+                    }
+
+                    # Восстановление статуса службы (запускается ТОЛЬКО если до оптимизации была Running)
                     if ($s.Status -eq "Running") {
                         Start-Service -Name $s.Name -ErrorAction SilentlyContinue
                     } elseif ($s.Status -eq "Stopped") {
                         Stop-Service -Name $s.Name -Force -ErrorAction SilentlyContinue
                     }
-                    Write-Host "  [OK] Служба $($s.Name) возвращена к исходному состоянию (StartType: $($s.StartupType), Status: $($s.Status))" -ForegroundColor Green
+
+                    # Пост-проверка фактического типа запуска и статуса
+                    $currSrv = Get-Service -Name $s.Name -ErrorAction SilentlyContinue
+                    $currType = if ($currSrv) { $currSrv.StartType.ToString() } else { "Unknown" }
+                    if ($currType -eq "Automatic" -and (Test-Path $regPath)) {
+                        $isDel = (Get-ItemProperty -Path $regPath -Name "DelayedAutostart" -ErrorAction SilentlyContinue).DelayedAutostart
+                        if ($isDel -eq 1) { $currType = "AutomaticDelayedStart" }
+                    }
+
+                    $typeMatches = ($currType -eq $s.StartupType)
+                    $statusMatches = ($null -ne $currSrv -and ($s.Status -eq "Stopped" -or $currSrv.Status.ToString() -eq $s.Status))
+
+                    if ($typeMatches -and $statusMatches) {
+                        Write-Host "  [OK] Служба $($s.Name) возвращена к исходному состоянию (StartupType: $($s.StartupType), Status: $($s.Status))" -ForegroundColor Green
+                    } else {
+                        $servicesRestoredCleanly = $false
+                        Write-Host "  [ERROR] Несоответствие при восстановлении службы $($s.Name): ожидался StartupType '$($s.StartupType)' (фактический '$currType'), Status '$($s.Status)' (фактический '$($currSrv.Status)')" -ForegroundColor Red
+                    }
                 } catch {
-                    Write-Host "  [WARNING] Ошибка восстановления службы $($s.Name): $($_.Exception.Message)" -ForegroundColor Yellow
+                    $servicesRestoredCleanly = $false
+                    Write-Host "  [ERROR] Ошибка восстановления службы $($s.Name): $($_.Exception.Message)" -ForegroundColor Red
                 }
             }
         }
@@ -421,15 +480,34 @@ function Restore-DebloatSettings {
         }
     }
 
-    # Точное восстановление только тех задач, которые изначально были активны
+    # Точное восстановление только тех задач, которые изначально имели признак Enabled
     $taskSnap = Get-LatestStateSnapshot -Category "TelemetryTasks"
+    $tasksRestoredCleanly = $true
     if ($taskSnap -and $taskSnap.StateData) {
         foreach ($t in $taskSnap.StateData) {
-            if ($t.Exists -and $t.State -ne "Disabled" -and $t.State -ne "NotFound") {
-                Enable-ScheduledTask -TaskPath $t.TaskPath -TaskName $t.TaskName -ErrorAction SilentlyContinue | Out-Null
-                Write-Host "  [OK] Запланированная задача $($t.TaskName) включена (исходное состояние: $($t.State))" -ForegroundColor Green
-            } elseif ($t.Exists -and $t.State -eq "Disabled") {
-                Write-Host "  [OK] Задача $($t.TaskName) оставлена отключенной (как было до запуска)" -ForegroundColor DarkGray
+            if ($t.Exists) {
+                # Проверяем фактический признак Enabled, а не только State
+                $shouldBeEnabled = $false
+                if ($null -ne $t.PSObject.Properties['Enabled']) {
+                    $shouldBeEnabled = [bool]$t.Enabled
+                } else {
+                    $shouldBeEnabled = ($t.State -ne "Disabled" -and $t.State -ne "NotFound")
+                }
+
+                if ($shouldBeEnabled) {
+                    Enable-ScheduledTask -TaskPath $t.TaskPath -TaskName $t.TaskName -ErrorAction SilentlyContinue | Out-Null
+                    $currTask = Get-ScheduledTask -TaskPath $t.TaskPath -TaskName $t.TaskName -ErrorAction SilentlyContinue
+                    $isNowEnabled = ($currTask -and $currTask.Settings.Enabled -eq $true)
+                    if ($isNowEnabled) {
+                        Write-Host "  [OK] Запланированная задача $($t.TaskName) включена (исходное Enabled: True)" -ForegroundColor Green
+                    } else {
+                        $tasksRestoredCleanly = $false
+                        Write-Host "  [ERROR] Не удалось включить запланированную задачу $($t.TaskName)" -ForegroundColor Red
+                    }
+                } else {
+                    Disable-ScheduledTask -TaskPath $t.TaskPath -TaskName $t.TaskName -ErrorAction SilentlyContinue | Out-Null
+                    Write-Host "  [OK] Задача $($t.TaskName) оставлена отключенной (как было до оптимизации, Enabled: False)" -ForegroundColor DarkGray
+                }
             }
         }
     } else {
@@ -446,7 +524,17 @@ function Restore-DebloatSettings {
         }
     }
 
-    Write-Host "[Debloat] Параметры телеметрии, служб и интерфейса возвращены к исходному состоянию." -ForegroundColor Green
+    $overallOk = ($servicesRestoredCleanly -and $tasksRestoredCleanly)
+    if ($overallOk) {
+        Write-Host "[Debloat] Параметры телеметрии, служб и интерфейса возвращены к исходному состоянию." -ForegroundColor Green
+    } else {
+        Write-Host "[Debloat ERROR] Часть служб или задач телеметрии не удалось вернуть к исходному состоянию." -ForegroundColor Red
+    }
+    return [PSCustomObject]@{
+        Success          = $overallOk
+        ServicesRestored = $servicesRestoredCleanly
+        TasksRestored    = $tasksRestoredCleanly
+    }
 }
 
 function Get-RecallStatus {

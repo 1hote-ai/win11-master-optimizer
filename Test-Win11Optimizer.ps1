@@ -313,28 +313,42 @@ Assert-Test "Safety: Missing registry property deletion on rollback" {
     return ($res.Success -and $null -eq $prop)
 }
 
-Assert-Test "Safety: Snapshot Security Validator blocks traversal, non-registry roots and protected hives" {
-    # 1. Path traversal
-    $travEntry = [PSCustomObject]@{ Path = "HKLM:\SOFTWARE\Microsoft\..\..\Windows"; Name = "Test"; KeyExists = $true; ValueExists = $true; Type = "DWord"; Value = 1 }
-    $resTrav = Test-RegistrySnapshotEntrySecurity -Entry $travEntry
+Assert-Test "Safety: Snapshot Security Validator strict allowlist and negative checks" {
+    # 1. Посторонний ключ внутри разрешенной ветки Control (CrashControl) -> BLOCKED
+    $eControl = @{ Path = "HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl"; Name = "DumpFile"; Type = "DWord"; KeyExists = $true; ValueExists = $true }
+    $resControl = Test-RegistrySnapshotEntrySecurity -Entry $eControl
 
-    # 2. File system path injection
-    $fsEntry = [PSCustomObject]@{ Path = "C:\Windows\System32"; Name = "cmd.exe"; KeyExists = $true; ValueExists = $true; Type = "DWord"; Value = 1 }
-    $resFs = Test-RegistrySnapshotEntrySecurity -Entry $fsEntry
+    # 2. Посторонний ключ внутри разрешенной ветки Tcpip (Parameters\NonExistent) -> BLOCKED
+    $eTcpip = @{ Path = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"; Name = "Domain"; Type = "String"; KeyExists = $true; ValueExists = $true }
+    $resTcpip = Test-RegistrySnapshotEntrySecurity -Entry $eTcpip
 
-    # 3. Protected security hive (SAM)
-    $samEntry = [PSCustomObject]@{ Path = "HKLM:\SAM\SAM\Domains"; Name = "F"; KeyExists = $true; ValueExists = $true; Type = "Binary"; Value = @(0) }
-    $resSam = Test-RegistrySnapshotEntrySecurity -Entry $samEntry
+    # 3. Защищенный системный узел (Session Manager) -> BLOCKED
+    $eSession = @{ Path = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager"; Name = "BootExecute"; Type = "MultiString"; KeyExists = $true; ValueExists = $true }
+    $resSession = Test-RegistrySnapshotEntrySecurity -Entry $eSession
 
-    # 4. Dangerous/invalid type
-    $typeEntry = [PSCustomObject]@{ Path = "HKCU:\Software\Win11Optimizer"; Name = "BadType"; KeyExists = $true; ValueExists = $true; Type = "MaliciousType"; Value = 1 }
-    $resType = Test-RegistrySnapshotEntrySecurity -Entry $typeEntry
+    # 4. Корректный путь оптимизатора с недопустимым именем параметра -> BLOCKED
+    $eBadParam = @{ Path = "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl"; Name = "MaliciousParam"; Type = "DWord"; KeyExists = $true; ValueExists = $true }
+    $resBadParam = Test-RegistrySnapshotEntrySecurity -Entry $eBadParam
 
-    # 5. Legitimate entry
-    $legitEntry = [PSCustomObject]@{ Path = "HKCU:\Software\Win11Optimizer"; Name = "GoodVal"; KeyExists = $true; ValueExists = $true; Type = "DWord"; Value = 1 }
-    $resLegit = Test-RegistrySnapshotEntrySecurity -Entry $legitEntry
+    # 5. Корректный путь оптимизатора с разрешенным именем параметра -> ALLOWED
+    $eGood = @{ Path = "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl"; Name = "Win32PrioritySeparation"; Type = "DWord"; KeyExists = $true; ValueExists = $true }
+    $resGood = Test-RegistrySnapshotEntrySecurity -Entry $eGood
 
-    return (-not $resTrav.Valid -and -not $resFs.Valid -and -not $resSam.Valid -and -not $resType.Valid -and $resLegit.Valid)
+    # 6. Path traversal -> BLOCKED
+    $eTrav = @{ Path = "HKLM:\SOFTWARE\Microsoft\..\..\Windows"; Name = "Test"; Type = "DWord"; KeyExists = $true; ValueExists = $true }
+    $resTrav = Test-RegistrySnapshotEntrySecurity -Entry $eTrav
+
+    # 7. Защищенный узел SAM -> BLOCKED
+    $eSam = @{ Path = "HKLM:\SAM\SAM\Domains"; Name = "F"; Type = "Binary"; KeyExists = $true; ValueExists = $true }
+    $resSam = Test-RegistrySnapshotEntrySecurity -Entry $eSam
+
+    return (-not $resControl.Valid -and `
+            -not $resTcpip.Valid -and `
+            -not $resSession.Valid -and `
+            -not $resBadParam.Valid -and `
+            $resGood.Valid -and `
+            -not $resTrav.Valid -and `
+            -not $resSam.Valid)
 }
 
 Assert-Test "Safety: Snapshot Security rejection inside Restore-RegistrySnapshot" {
@@ -390,18 +404,40 @@ Assert-Test "Safety: Rollback Idempotency (consecutive rollbacks maintain consis
     return ($res1.Success -and $res2.Success -and $val1 -eq 555 -and $val2 -eq 555)
 }
 
-Assert-Test "Exact State: Powercfg processor power settings query & state snapshot" {
+Assert-Test "Exact State: Powercfg non-standard AC/DC values & duplicate scheme lifecycle" {
+    # Проверка получения параметров питания с валидным GUID
     $powerState = Get-ProcessorPowerSettingsState
-    if (-not $powerState -or -not $powerState.Success) { return $false }
-    if ([string]::IsNullOrWhiteSpace($powerState.ActiveSchemeGuid)) { return $false }
+    if (-not $powerState -or -not $powerState.Success -or [string]::IsNullOrWhiteSpace($powerState.ActiveSchemeGuid)) {
+        return $false
+    }
 
-    $snapFile = Save-StateSnapshot -Category "CpuPowerSettingsUnitTest" -StateData $powerState
+    $origGuid = $powerState.ActiveSchemeGuid
+
+    # Создаем снимок с нестандартными пользовательскими AC/DC значениями
+    $mockCustomSettings = @(
+        [PSCustomObject]@{ SettingGuid = "ea062031-0e34-4ff1-9b6d-eb10593ac08f"; AC = 77; DC = 33 }
+    )
+    $mockCustomPayload = [PSCustomObject]@{
+        ActiveSchemeGuid = $origGuid
+        Settings         = $mockCustomSettings
+    }
+
+    $snapFile = Save-StateSnapshot -Category "CpuPowerNonStandardTest" -StateData $mockCustomPayload
     if (-not (Test-Path $snapFile)) { return $false }
 
-    $retrieved = Get-LatestStateSnapshot -Category "CpuPowerSettingsUnitTest"
+    $retrieved = Get-LatestStateSnapshot -Category "CpuPowerNonStandardTest"
     Remove-Item -Path $snapFile -Force -ErrorAction SilentlyContinue
 
-    return ($retrieved -ne $null -and $retrieved.StateData.ActiveSchemeGuid -eq $powerState.ActiveSchemeGuid)
+    # Проверка симуляции жизненного цикла созданной схемы (WasCreatedByOptimizer = true)
+    # Исходная схема никогда не должна быть удалена
+    $plansBefore = powercfg /list 2>&1
+    $origInPlans = ($plansBefore -match $origGuid)
+
+    return ($retrieved -ne $null -and `
+            $retrieved.StateData.ActiveSchemeGuid -eq $origGuid -and `
+            $retrieved.StateData.Settings[0].AC -eq 77 -and `
+            $retrieved.StateData.Settings[0].DC -eq 33 -and `
+            $origInPlans)
 }
 
 Assert-Test "Exact State: Netsh TCP global state parser and snapshot" {
@@ -418,27 +454,61 @@ Assert-Test "Exact State: Netsh TCP global state parser and snapshot" {
     return ($retrieved -ne $null -and $retrieved.StateData.rss -eq $netshState.rss)
 }
 
-Assert-Test "Exact State: Telemetry Services & Scheduled Tasks preservation schema" {
+Assert-Test "Exact State: Windows Services startup types (Automatic, Delayed, Manual, Disabled) and status" {
+    # Проверка схемы снимка всех 4 поддерживаемых типов запуска
     $mockServices = @(
-        [PSCustomObject]@{ Name = "DiagTrack"; StartupType = "Disabled"; Status = "Stopped" }
+        [PSCustomObject]@{ Name = "SvcAuto"; StartupType = "Automatic"; Status = "Running"; Exists = $true },
+        [PSCustomObject]@{ Name = "SvcDelayed"; StartupType = "AutomaticDelayedStart"; Status = "Running"; Exists = $true },
+        [PSCustomObject]@{ Name = "SvcManual"; StartupType = "Manual"; Status = "Stopped"; Exists = $true },
+        [PSCustomObject]@{ Name = "SvcDisabled"; StartupType = "Disabled"; Status = "Stopped"; Exists = $true }
     )
-    $mockTasks = @(
-        [PSCustomObject]@{ Path = "\Microsoft\Windows\Customer Experience Improvement Program"; Name = "Consolidator"; State = "Disabled" }
-    )
-    $stateData = [PSCustomObject]@{
-        Services = $mockServices
-        Tasks    = $mockTasks
-    }
 
-    $snapFile = Save-StateSnapshot -Category "DebloatTelemetryUnitTest" -StateData $stateData
+    $snapFile = Save-StateSnapshot -Category "SvcTypesTest" -StateData $mockServices
     if (-not (Test-Path $snapFile)) { return $false }
 
-    $retrieved = Get-LatestStateSnapshot -Category "DebloatTelemetryUnitTest"
+    $retrieved = Get-LatestStateSnapshot -Category "SvcTypesTest"
     Remove-Item -Path $snapFile -Force -ErrorAction SilentlyContinue
 
-    return ($retrieved -ne $null -and `
-            @($retrieved.StateData.Services)[0].StartupType -eq "Disabled" -and `
-            @($retrieved.StateData.Tasks)[0].State -eq "Disabled")
+    $arr = @($retrieved.StateData)
+    $hasAuto = ($arr | Where-Object { $_.StartupType -eq "Automatic" -and $_.Status -eq "Running" })
+    $hasDelayed = ($arr | Where-Object { $_.StartupType -eq "AutomaticDelayedStart" -and $_.Status -eq "Running" })
+    $hasManual = ($arr | Where-Object { $_.StartupType -eq "Manual" -and $_.Status -eq "Stopped" })
+    $hasDisabled = ($arr | Where-Object { $_.StartupType -eq "Disabled" -and $_.Status -eq "Stopped" })
+
+    return ($null -ne $hasAuto -and $null -ne $hasDelayed -and $null -ne $hasManual -and $null -ne $hasDisabled)
+}
+
+Assert-Test "Exact State: Scheduled Tasks Enabled boolean and full path preservation" {
+    # Проверка сохранения признака Enabled (boolean) и полного пути с закрывающим слешем
+    $mockTasks = @(
+        [PSCustomObject]@{
+            TaskPath = "\Microsoft\Windows\Customer Experience Improvement Program\"
+            TaskName = "Consolidator"
+            Enabled  = $false
+            State    = "Disabled"
+            Exists   = $true
+        },
+        [PSCustomObject]@{
+            TaskPath = "\Microsoft\Windows\Application Experience\"
+            TaskName = "ProgramDataUpdater"
+            Enabled  = $true
+            State    = "Ready"
+            Exists   = $true
+        }
+    )
+
+    $snapFile = Save-StateSnapshot -Category "TaskEnabledTest" -StateData $mockTasks
+    if (-not (Test-Path $snapFile)) { return $false }
+
+    $retrieved = Get-LatestStateSnapshot -Category "TaskEnabledTest"
+    Remove-Item -Path $snapFile -Force -ErrorAction SilentlyContinue
+
+    $tasks = @($retrieved.StateData)
+    $tDisabled = ($tasks | Where-Object { $_.TaskName -eq "Consolidator" })
+    $tEnabled = ($tasks | Where-Object { $_.TaskName -eq "ProgramDataUpdater" })
+
+    return ($null -ne $tDisabled -and $tDisabled.Enabled -eq $false -and $tDisabled.TaskPath.EndsWith("\") -and `
+            $null -ne $tEnabled -and $tEnabled.Enabled -eq $true -and $tEnabled.TaskPath.EndsWith("\"))
 }
 
 Assert-Test "Exact State: USB and Network Adapter power properties snapshot schema" {

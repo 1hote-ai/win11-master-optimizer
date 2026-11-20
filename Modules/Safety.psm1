@@ -257,48 +257,218 @@ function Test-RegistrySnapshotEntrySecurity {
         return [PSCustomObject]@{ Valid = $false; Error = "Запрещенный корневой раздел. Разрешены только ветки реестра HKLM:\ и HKCU:\. Задано: $pathStr" }
     }
 
-    # Белый список доверенных системных префиксов реестра Windows Optimizer
-    $allowedPrefixes = @(
-        "HKLM:\SOFTWARE\Policies\Microsoft\",
-        "HKLM:\SOFTWARE\Microsoft\Windows\",
-        "HKLM:\SOFTWARE\Microsoft\Windows NT\",
-        "HKLM:\SOFTWARE\Microsoft\PolicyManager\",
-        "HKLM:\SYSTEM\CurrentControlSet\Control\",
-        "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\",
-        "HKCU:\Software\Microsoft\",
-        "HKCU:\Software\Classes\",
-        "HKCU:\Software\Policies\",
-        "HKCU:\System\",
-        "HKCU:\Control Panel\",
-        "HKCU:\Software\Win11Opt"  # Песочницы для юнит-тестов
-    )
-
-    $isAllowed = $false
-    foreach ($prefix in $allowedPrefixes) {
-        if ($pathStr.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-            $isAllowed = $true
-            break
-        }
-    }
-
-    if (-not $isAllowed) {
-        return [PSCustomObject]@{ Valid = $false; Error = "Путь реестра $pathStr находится за пределами разрешенных веток оптимизатора" }
-    }
-
     # Черный список критических системных узлов безопасности
     $blockedSubstrings = @(
         "HKLM:\SAM",
         "HKLM:\SECURITY",
         "HKLM:\BCD00000000",
         "\Control\Lsa",
+        "\Control\Session Manager",
         "\Services\WinDefend",
-        "\Services\MpsSvc"
+        "\Services\MpsSvc",
+        "\Services\LanmanServer"
     )
 
     foreach ($blocked in $blockedSubstrings) {
         if ($pathStr -like "*$blocked*") {
             return [PSCustomObject]@{ Valid = $false; Error = "Попытка доступа к защищенному системному узлу: $blocked" }
         }
+    }
+
+    # Строгий allowlist точных путей реестра (regex) и разрешенных имен параметров
+    $strictAllowRules = @(
+        # 1. Safety
+        @{
+            Pattern = '^HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\SystemRestore$'
+            Names   = @('SystemRestorePointCreationFrequency')
+        },
+        # 2. GamingLatency: PowerThrottling, PriorityControl, SystemProfile, DeviceGuard, MSI
+        @{
+            Pattern = '^HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling$'
+            Names   = @('PowerThrottlingOff')
+        },
+        @{
+            Pattern = '^HKLM:\\SYSTEM\\CurrentControlSet\\Control\\PriorityControl$'
+            Names   = @('Win32PrioritySeparation')
+        },
+        @{
+            Pattern = '^HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile$'
+            Names   = @('SystemResponsiveness', 'NetworkThrottlingIndex')
+        },
+        @{
+            Pattern = '^HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Games$'
+            Names   = @('GPU Priority', 'Priority', 'Scheduling Category', 'SFIO Priority')
+        },
+        @{
+            Pattern = '^HKLM:\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard$'
+            Names   = @('EnableVirtualizationBasedSecurity', 'HypervisorEnforcedCodeIntegrity')
+        },
+        @{
+            Pattern = '^HKLM:\\SYSTEM\\CurrentControlSet\\Enum\\PCI\\[^\\]+\\[^\\]+\\Device Parameters\\Interrupt Management\\MessageSignaledInterruptProperties$'
+            Names   = @('MSISupported')
+        },
+        @{
+            Pattern = '^HKLM:\\SYSTEM\\CurrentControlSet\\Enum\\PCI\\[^\\]+\\[^\\]+\\Device Parameters\\Interrupt Management\\Affinity Policy$'
+            Names   = @('DevicePriority')
+        },
+        # 3. NetworkGaming: Nagle & DNS on network interfaces
+        @{
+            Pattern = '^HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces\\\{?[a-f0-9\-]+\}?$'
+            Names   = @('TcpAckFrequency', 'TCPNoDelay', 'TcpDelAckTicks', 'NameServer', 'DhcpNameServer')
+        },
+        # 4. GpuDisplay: DWM MPO, HAGS, DirectX, Driver Update Protection, NVIDIA HDCP
+        @{
+            Pattern = '^HKLM:\\SOFTWARE\\Microsoft\\Windows\\Dwm$'
+            Names   = @('OverlayTestMode')
+        },
+        @{
+            Pattern = '^HKLM:\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers$'
+            Names   = @('HwSchMode')
+        },
+        @{
+            Pattern = '^HKCU:\\Software\\Microsoft\\DirectX\\UserGpuPreferences$'
+            Names   = @('DirectXUserGlobalSettings')
+        },
+        @{
+            Pattern = '^HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate$'
+            Names   = @('ExcludeWUDriversInQualityUpdate')
+        },
+        @{
+            Pattern = '^HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\\{4d36e968-e325-11ce-bfc1-08002be10318\}\\\d+$'
+            Names   = @('RMHdcpKeyglobZero')
+        },
+        # 5. Debloat: AI Recall, Copilot, Bing, Widgets, Telemetry, Privacy, Ads
+        @{
+            Pattern = '^(HKLM|HKCU):\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI$'
+            Names   = @('DisableAIDataAnalysis')
+        },
+        @{
+            Pattern = '^(HKLM|HKCU):\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsCopilot$'
+            Names   = @('TurnOffWindowsCopilot')
+        },
+        @{
+            Pattern = '^HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced$'
+            Names   = @('ShowCopilotButton', 'TaskbarDa', 'HideFileExt', 'Hidden', 'LaunchTo', 'UseCompactMode', 'TaskbarAnimations', 'ShowRecent', 'Start_AccountNotifications')
+        },
+        @{
+            Pattern = '^HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Search$'
+            Names   = @('BingSearchEnabled', 'SearchboxTaskbarMode')
+        },
+        @{
+            Pattern = '^HKCU:\\SOFTWARE\\Policies\\Microsoft\\Windows\\Explorer$'
+            Names   = @('DisableSearchBoxSuggestions')
+        },
+        @{
+            Pattern = '^HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\Explorer$'
+            Names   = @('HideRecommendedSection')
+        },
+        @{
+            Pattern = '^HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search$'
+            Names   = @('DisableWebSearch', 'ConnectedSearchUseWeb', 'AllowCortana', 'EnableDynamicContentInWSB')
+        },
+        @{
+            Pattern = '^HKLM:\\SOFTWARE\\Policies\\Microsoft\\Dsh$'
+            Names   = @('AllowNewsAndInterests')
+        },
+        @{
+            Pattern = '^HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection$'
+            Names   = @('AllowTelemetry', 'DoNotShowFeedbackNotifications')
+        },
+        @{
+            Pattern = '^HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Privacy$'
+            Names   = @('TailoredExperiencesWithDiagnosticDataEnabled')
+        },
+        @{
+            Pattern = '^HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\AdvertisingInfo$'
+            Names   = @('Enabled')
+        },
+        # 6. SystemUI: Context Menu CLSID, Explorer, Maintenance, GameDVR, PhotoViewer
+        @{
+            Pattern = '^HKCU:\\Software\\Classes\\CLSID\\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2\}(\\InprocServer32)?$'
+            Names   = @('', '(default)', 'InprocServer32')
+        },
+        @{
+            Pattern = '^HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Schedule\\Maintenance$'
+            Names   = @('MaintenanceDisabled')
+        },
+        @{
+            Pattern = '^HKCU:\\System\\GameConfigStore$'
+            Names   = @('GameDVR_Enabled', 'GameDVR_FSEBehaviorMode', 'GameDVR_HonorUserFSEBehaviorMode', 'GameDVR_DXGIHonorFSEWindowsCompatible', 'GameDVR_EFSEFeatureFlags')
+        },
+        @{
+            Pattern = '^HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\GameDVR$'
+            Names   = @('AllowGameDVR')
+        },
+        @{
+            Pattern = '^HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\GameDVR$'
+            Names   = @('AppCaptureEnabled')
+        },
+        @{
+            Pattern = '^HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\SearchSettings$'
+            Names   = @('IsDynamicContentInSearchBoxEnabled', 'IsSearchHighlightsEnabled')
+        },
+        @{
+            Pattern = '^HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer$'
+            Names   = @('ShowFrequent', 'ShowRecent')
+        },
+        @{
+            Pattern = '^HKCU:\\Control Panel\\Desktop$'
+            Names   = @('MenuShowDelay')
+        },
+        @{
+            Pattern = '^HKLM:\\SOFTWARE\\Classes\\CLSID\\\{f874310e-b6b7-47dc-bc84-b9e6b38f5903\}$'
+            Names   = @('System.IsPinnedToNameSpaceTree')
+        },
+        @{
+            Pattern = '^HKCU:\\Software\\Classes\\CLSID\\\{e88865ea-0e1c-4e20-9aa6-edcd0212c87c\}$'
+            Names   = @('System.IsPinnedToNameSpaceTree')
+        },
+        @{
+            Pattern = '^HKLM:\\SOFTWARE\\Microsoft\\PolicyManager\\current\\device\\Education$'
+            Names   = @('IsEducationEnvironment')
+        },
+        @{
+            Pattern = '^HKLM:\\SOFTWARE\\Microsoft\\PolicyManager\\current\\device\\Start$'
+            Names   = @('HideRecommendedSection')
+        },
+        @{
+            Pattern = '^HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Desktop\\NameSpace\\\{f874310e-b6b7-47dc-bc84-b9e6b38f5903\}$'
+            Names   = @('', '(default)')
+        },
+        @{
+            Pattern = '^HKLM:\\SOFTWARE\\Microsoft\\Windows Photo Viewer\\Capabilities\\FileAssociations$'
+            Names   = @('.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.gif', '.ico')
+        },
+        # 7. Sandbox for automated tests
+        @{
+            Pattern = '^HKCU:\\Software\\Win11Opt.*$'
+            Names   = @('*')
+        },
+        @{
+            Pattern = '^HKCU:\\Software\\Win11Optimizer.*$'
+            Names   = @('*')
+        }
+    )
+
+    $isPathAllowed = $false
+    $matchedRule = $null
+
+    foreach ($rule in $strictAllowRules) {
+        if ($pathStr -match $rule.Pattern) {
+            $isPathAllowed = $true
+            $matchedRule = $rule
+            break
+        }
+    }
+
+    if (-not $isPathAllowed) {
+        return [PSCustomObject]@{ Valid = $false; Error = "Путь реестра '$pathStr' не входит в строгий allowlist оптимизатора" }
+    }
+
+    # Валидация имени параметра
+    $nameStr = [string]$name
+    if ($matchedRule.Names -notcontains '*' -and -not ($matchedRule.Names -contains $nameStr)) {
+        return [PSCustomObject]@{ Valid = $false; Error = "Недопустимое имя параметра '$nameStr' для пути '$pathStr'. Разрешены только: $($matchedRule.Names -join ', ')" }
     }
 
     # Проверка допустимого типа реестра

@@ -162,21 +162,66 @@ function Restore-ActivePowerScheme {
     $snap = Get-LatestStateSnapshot -Category "ActivePowerScheme"
     if ($snap -and $snap.StateData -and $snap.StateData.ActiveSchemeGuid) {
         $origGuid = $snap.StateData.ActiveSchemeGuid
+
+        # 1. Сначала активируем именно исходную схему пользователя
         powercfg -setactive $origGuid 2>&1 | Out-Null
-        Write-Host "  [OK] Первоначальная схема питания ($origGuid) восстановлена." -ForegroundColor Green
-        return $true
+
+        $curActive = powercfg /getactivescheme 2>&1
+        $switchedOk = ($curActive -match $origGuid)
+        if ($switchedOk) {
+            Write-Host "  [OK] Первоначальная схема питания ($origGuid) восстановлена." -ForegroundColor Green
+        } else {
+            Write-Host "  [WARNING] Не удалось переключить активную схему питания на $origGuid." -ForegroundColor Yellow
+        }
+
+        # 2. Удаление схемы, созданной оптимизатором:
+        # - Удаляем только если схема была создана оптимизатором ($snap.StateData.WasCreatedByOptimizer -eq $true)
+        # - Не удаляем схему, если она по-прежнему активна
+        # - Ни при каких обстоятельствах не удаляем исходную схему пользователя ($createdGuid -ne $origGuid)
+        if ($snap.StateData.WasCreatedByOptimizer -and -not [string]::IsNullOrWhiteSpace($snap.StateData.CreatedSchemeGuid)) {
+            $createdGuid = $snap.StateData.CreatedSchemeGuid
+            if ($createdGuid -ne $origGuid -and -not ($curActive -match $createdGuid)) {
+                $listBefore = powercfg /list 2>&1
+                if ($listBefore -match $createdGuid) {
+                    powercfg -delete $createdGuid 2>&1 | Out-Null
+                    $listAfter = powercfg /list 2>&1
+                    if (-not ($listAfter -match $createdGuid)) {
+                        Write-Host "  [OK] Временная схема Ultimate Performance ($createdGuid), созданная оптимизатором, безопасно удалена." -ForegroundColor Green
+                    }
+                }
+            }
+        }
+        return $switchedOk
     }
     return $false
 }
 
 function Get-ProcessorPowerSettingsState {
-    $activeScheme = powercfg /getactivescheme 2>&1
-    $activeGuid = $null
-    if ($activeScheme -match '([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})') {
-        $activeGuid = $Matches[1]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)]
+        [string]$SchemeGuid = ""
+    )
+
+    $targetGuid = $SchemeGuid
+    if ([string]::IsNullOrWhiteSpace($targetGuid)) {
+        # Сначала проверяем, есть ли сохраненный снимок исходной схемы питания
+        $activeSnap = Get-LatestStateSnapshot -Category "ActivePowerScheme"
+        if ($activeSnap -and $activeSnap.StateData -and $activeSnap.StateData.ActiveSchemeGuid) {
+            $targetGuid = $activeSnap.StateData.ActiveSchemeGuid
+        } else {
+            $activeScheme = powercfg /getactivescheme 2>&1
+            if ($activeScheme -match '([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})') {
+                $targetGuid = $Matches[1]
+            }
+        }
     }
 
-    $lines = powercfg /q SCHEME_CURRENT SUB_PROCESSOR 2>&1
+    if ([string]::IsNullOrWhiteSpace($targetGuid)) {
+        $targetGuid = "SCHEME_CURRENT"
+    }
+
+    $lines = powercfg /q $targetGuid SUB_PROCESSOR 2>&1
     $curGuid = $null
     $settings = @{}
 
@@ -198,8 +243,8 @@ function Get-ProcessorPowerSettingsState {
     }
 
     return [PSCustomObject]@{
-        Success          = [bool](-not [string]::IsNullOrWhiteSpace($activeGuid))
-        ActiveSchemeGuid = $activeGuid
+        Success          = [bool](-not [string]::IsNullOrWhiteSpace($targetGuid) -and $targetGuid -ne "SCHEME_CURRENT")
+        ActiveSchemeGuid = $targetGuid
         Settings         = @($settings.Values)
     }
 }
@@ -216,15 +261,17 @@ function Enable-UltimatePerformancePlan {
     }
 
     # Сохраняем исходную активную схему питания перед переключением
+    $origGuid = $null
     $activeScheme = powercfg /getactivescheme 2>&1
     if ($activeScheme -match '([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})') {
-        Save-StateSnapshot -Category "ActivePowerScheme" -StateData @{ ActiveSchemeGuid = $Matches[1] } -DryRun:$DryRun | Out-Null
+        $origGuid = $Matches[1]
     }
 
     try {
         # Проверяем, существует ли уже схема Максимальная производительность
         $plans = powercfg /list 2>&1
         $targetGuid = $null
+        $wasCreated = $false
 
         foreach ($line in ($plans -split "`r?`n")) {
             if ($line -like "*Максимальная производительность*" -or $line -like "*Ultimate Performance*") {
@@ -236,11 +283,20 @@ function Enable-UltimatePerformancePlan {
         }
 
         if (-not $targetGuid) {
-            # Разблокируем встроенную схему Ultimate Performance
+            # Разблокируем встроенную схему Ultimate Performance дубликатом
             $dupOut = powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 2>&1
             if ($dupOut -match 'GUID.*?:\s*([a-f0-9\-]+)') {
                 $targetGuid = $matches[1]
+                $wasCreated = $true
             }
+        }
+
+        if ($origGuid) {
+            Save-StateSnapshot -Category "ActivePowerScheme" -StateData @{
+                ActiveSchemeGuid      = $origGuid
+                CreatedSchemeGuid     = if ($wasCreated) { $targetGuid } else { $null }
+                WasCreatedByOptimizer = [bool]$wasCreated
+            } -DryRun:$DryRun | Out-Null
         }
 
         if ($targetGuid) {
@@ -322,10 +378,16 @@ function Restore-CpuGamingScheduling {
         Remove-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling" -Name "PowerThrottlingOff" -ErrorAction SilentlyContinue
     }
     
-    # Точное восстановление исходных параметров электропитания процессора из снимка
+    # 1. Возврат исходной активной схемы электропитания и очистка созданного дубликата
+    Restore-ActivePowerScheme | Out-Null
+
+    # 2. Точное восстановление исходных параметров электропитания процессора из снимка
     $snap = Get-LatestStateSnapshot -Category "CpuPowerSettings"
-    if ($snap -and $snap.StateData -and $snap.StateData.Settings) {
-        $targetScheme = if ($snap.StateData.ActiveSchemeGuid) { $snap.StateData.ActiveSchemeGuid } else { "SCHEME_CURRENT" }
+    if ($snap -and $snap.StateData -and $snap.StateData.Settings -and -not [string]::IsNullOrWhiteSpace($snap.StateData.ActiveSchemeGuid)) {
+        # Передаем именно сохраненный GUID исходной схемы, а не текущую активную схему
+        $targetScheme = $snap.StateData.ActiveSchemeGuid
+        $allRestoredOk = $true
+
         foreach ($s in $snap.StateData.Settings) {
             if ($null -ne $s.AC) {
                 powercfg -setacvalueindex $targetScheme SUB_PROCESSOR $s.SettingGuid $s.AC 2>&1 | Out-Null
@@ -334,18 +396,36 @@ function Restore-CpuGamingScheduling {
                 powercfg -setdcvalueindex $targetScheme SUB_PROCESSOR $s.SettingGuid $s.DC 2>&1 | Out-Null
             }
         }
+        # Применяем изменения к целевой схеме
         powercfg -setactive $targetScheme 2>&1 | Out-Null
-        Write-Host "  [OK] Первоначальные параметры питания процессора (AC/DC) для схемы $targetScheme точно восстановлены." -ForegroundColor Green
+
+        # Верификация восстановления параметров
+        $verifyState = Get-ProcessorPowerSettingsState -SchemeGuid $targetScheme
+        $settingsMap = @{}
+        foreach ($vs in $verifyState.Settings) { $settingsMap[$vs.SettingGuid] = $vs }
+
+        foreach ($s in $snap.StateData.Settings) {
+            if ($settingsMap.ContainsKey($s.SettingGuid)) {
+                $cur = $settingsMap[$s.SettingGuid]
+                if ($null -ne $s.AC -and $cur.AC -ne $s.AC) { $allRestoredOk = $false }
+                if ($null -ne $s.DC -and $cur.DC -ne $s.DC) { $allRestoredOk = $false }
+            }
+        }
+
+        if ($allRestoredOk) {
+            Write-Host "  [OK] Первоначальные параметры питания процессора (AC/DC) для схемы $targetScheme точно восстановлены." -ForegroundColor Green
+        } else {
+            Write-Host "  [WARNING] Часть параметров питания процессора схемы $targetScheme не совпадает с исходными." -ForegroundColor Yellow
+        }
     } else {
         # Fallback на дефолтные параметры схемы электропитания только при отсутствии снимка
         powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES 10 2>&1 | Out-Null
         powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFEPP 50 2>&1 | Out-Null
         powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMIN 5 2>&1 | Out-Null
         powercfg -setactive SCHEME_CURRENT 2>&1 | Out-Null
+        Write-Host "  [WARNING] Снимок питания CPU не найден: применены стандартные значения SCHEME_CURRENT." -ForegroundColor Yellow
     }
 
-    # Возврат исходной схемы электропитания, если активировался Ultimate Performance
-    Restore-ActivePowerScheme | Out-Null
     Write-Host "[CPU Optimization] Параметры CPU возвращены к исходным значениям." -ForegroundColor Green
 }
 

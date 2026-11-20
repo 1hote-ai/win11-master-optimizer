@@ -10,7 +10,7 @@
 [![OS - Windows 11 24H2 Ready](https://img.shields.io/badge/OS-Windows%2011%20(22H2%20--%2024H2)-00D2FF?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/1hote-ai/win11-master-optimizer)
 [![Engine - PowerShell & C# P/Invoke](https://img.shields.io/badge/Engine-PowerShell%20%2B%20NT--Kernel%20P%2FInvoke-10B981?style=for-the-badge&logo=powershell&logoColor=white)](https://github.com/1hote-ai/win11-master-optimizer)
 [![Safety - 2-Tier Rollback Engine](https://img.shields.io/badge/Safety-2--Уровневый%20Откат-6366F1?style=for-the-badge&logo=shield&logoColor=white)](docs/SAFETY_AUDIT.md)
-[![Tests - 42/42 Passing](https://img.shields.io/badge/Tests-42%2F42%20Пройдено-34D399?style=for-the-badge&logo=checkmarx&logoColor=white)](Test-Win11Optimizer.ps1)
+[![Tests - 52/52 Passing](https://img.shields.io/badge/Tests-52%2F52%20Пройдено-34D399?style=for-the-badge&logo=checkmarx&logoColor=white)](Test-Win11Optimizer.ps1)
 [![Лицензия - MIT](https://img.shields.io/badge/Лицензия-MIT-3B82F6?style=for-the-badge&logo=open-source-initiative&logoColor=white)](LICENSE)
 
 [English](README.md) • [Русский](README.ru.md) • [Паспорт Продукта](docs/PRODUCT_PASSPORT.md) • [Аудит Безопасности](docs/SAFETY_AUDIT.md) • [GitHub Topics & SEO](docs/GITHUB_TOPICS.md) • [Сообщить об ошибке](https://github.com/1hote-ai/win11-master-optimizer/issues/new/choose)
@@ -37,7 +37,7 @@
 ```
 win11-master-optimizer/
 ├── Win11Optimizer.ps1             # Главный движок (TUI-меню и CLI-режимы)
-├── Test-Win11Optimizer.ps1        # Автоматический тестовый набор (51 проверка)
+├── Test-Win11Optimizer.ps1        # Автоматический тестовый набор (52 проверки)
 ├── Start.bat / Start-Optimizer.bat # Надежные лаунчеры с авто-UAC (UTF-8)
 ├── Modules/
 │   ├── Safety.psm1                # Точки восстановления, JSON-снимки и откат
@@ -181,7 +181,7 @@ powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode Rollback
 
 ## 🧪 Автоматическое тестирование
 
-Для запуска набора автоматических тестов (42 проверки):
+Для запуска набора автоматических тестов (52 проверки):
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\Test-Win11Optimizer.ps1
 ```
@@ -222,7 +222,7 @@ powershell -ExecutionPolicy Bypass -File .\Test-Win11Optimizer.ps1
 - [x] Полная совместимость с Windows 11 24H2 (Build 26100+)
 - [x] Очистка Standby RAM кэша через NT-ядро в оперативной памяти
 - [x] Двухуровневый гранулярный движок отката (Restore Point + JSON-снимки с проверкой каждого ключа)
-- [x] Набор автоматических тестов из 42 проверок
+- [x] Набор автоматических тестов из 52 проверок
 - [x] Anycast DNS Benchmark и 1-Click переключатель DoH
 - [ ] Экспорт графических HTML/JSON отчетов о здоровье системы
 - [ ] Автоматическая интеграция с LatencyMon для замера DPC до и после
