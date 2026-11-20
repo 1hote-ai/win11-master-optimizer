@@ -1,17 +1,10 @@
-﻿<#
-.SYNOPSIS
-    Windows 11 Master Optimizer - Fast Web Bootstrap Loader
-    Usage:
-        irm https://raw.githubusercontent.com/1hote-ai/win11-master-optimizer/launch/preparation/boot.ps1 | iex
-#>
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $ErrorActionPreference = 'Stop'
 
-# Auto-Elevation check
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
     Write-Host "[UAC] Запрос прав Администратора..." -ForegroundColor Yellow
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"& { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm https://raw.githubusercontent.com/1hote-ai/win11-master-optimizer/launch/preparation/boot.ps1 | iex }`"" -Verb RunAs
+    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"& { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (irm https://raw.githubusercontent.com/1hote-ai/win11-master-optimizer/launch/preparation/boot.ps1).TrimStart([char]0xFEFF) | iex }`"" -Verb RunAs
     exit
 }
 
