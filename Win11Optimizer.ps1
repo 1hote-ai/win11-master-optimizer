@@ -141,9 +141,14 @@ function Invoke-UltraGamingPreset {
     # Laptop Guard: проверка наличия батареи
     $isLaptop = Test-IsLaptopDevice
     if ($isLaptop) {
-        Write-Host "`n  [Laptop Guard WARNING] Обнаружена батарея (ноутбук/портативное устройство)!" -ForegroundColor Yellow
-        Write-Host "  [Laptop Guard] Внимание: режим Ultra Gaming настраивает схему питания для максимальной производительности." -ForegroundColor Yellow
-        Write-Host "  [Laptop Guard] При работе от батареи (DC) энергосберегающие состояния будут сохранены для защиты аккумулятора." -ForegroundColor Yellow
+        Write-Host "`n  [Laptop Guard] Обнаружена батарея (ноутбук/портативное устройство)!" -ForegroundColor Yellow
+        $onBattery = Test-IsOnBatteryPower
+        if ($onBattery) {
+            Write-Host "  [Laptop Guard WARNING] Устройство в данный момент работает от аккумулятора (DC)!" -ForegroundColor Red
+            Write-Host "  [Laptop Guard] Для достижения максимальной частоты и защиты батареи подключите зарядное устройство (AC)." -ForegroundColor Yellow
+        }
+        Write-Host "  [Laptop Guard] Внимание: режим Ultra Gaming настраивает схему питания для максимальной производительности от сети (AC)." -ForegroundColor Yellow
+        Write-Host "  [Laptop Guard] При работе от батареи (DC) энергосберегающие состояния будут сохранены для защиты аккумулятора." -ForegroundColor Cyan
     }
 
     if (-not $NoRestorePoint -and -not $DryRun) {
@@ -239,6 +244,7 @@ function Invoke-FullRollback {
         "1" { Restore-GamingMsiMode }
         "2" {
             Restore-CpuGamingScheduling
+            Restore-ActivePowerScheme | Out-Null
             Restore-SystemResponsiveness
             Restore-RawMouseInput
             Restore-KeyboardResponseTuning
@@ -256,6 +262,7 @@ function Invoke-FullRollback {
         "8" {
             Restore-GamingMsiMode
             Restore-CpuGamingScheduling
+            Restore-ActivePowerScheme | Out-Null
             Restore-SystemResponsiveness
             Restore-RawMouseInput
             Restore-KeyboardResponseTuning

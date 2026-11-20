@@ -10,7 +10,7 @@
 [![OS - Windows 11 24H2 Ready](https://img.shields.io/badge/OS-Windows%2011%20(22H2%20--%2024H2)-00D2FF?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/1hote-ai/win11-master-optimizer)
 [![Engine - PowerShell & C# P/Invoke](https://img.shields.io/badge/Engine-PowerShell%20%2B%20NT--Kernel%20P%2FInvoke-10B981?style=for-the-badge&logo=powershell&logoColor=white)](https://github.com/1hote-ai/win11-master-optimizer)
 [![Safety - 2-Tier Rollback Engine](https://img.shields.io/badge/Safety-2--Tier%20Rollback%20Engine-6366F1?style=for-the-badge&logo=shield&logoColor=white)](docs/SAFETY_AUDIT.md)
-[![Tests - 63/63 Passing](https://img.shields.io/badge/Tests-63%2F63%20Passing-34D399?style=for-the-badge&logo=checkmarx&logoColor=white)](Test-Win11Optimizer.ps1)
+[![Tests - 66/66 Passing](https://img.shields.io/badge/Tests-66%2F66%20Passing-34D399?style=for-the-badge&logo=checkmarx&logoColor=white)](Test-Win11Optimizer.ps1)
 [![License - MIT](https://img.shields.io/badge/License-MIT-3B82F6?style=for-the-badge&logo=open-source-initiative&logoColor=white)](LICENSE)
 
 [English](README.md) • [Русский](README.ru.md) • [Documentation](docs/PRODUCT_PASSPORT.md) • [Safety Audit](docs/SAFETY_AUDIT.md) • [Topics & SEO](docs/GITHUB_TOPICS.md) • [Bug Report](https://github.com/1hote-ai/win11-master-optimizer/issues/new/choose)
@@ -37,7 +37,7 @@ Unlike legacy "black box" tweakers and opaque batch scripts from the 2010s that 
 ```
 win11-master-optimizer/
 ├── Win11Optimizer.ps1             # Main Orchestrator (TUI Menu & CLI Engine)
-├── Test-Win11Optimizer.ps1        # Automated Test Suite (63 automated assertions)
+├── Test-Win11Optimizer.ps1        # Automated Test Suite (66 automated assertions)
 ├── Start.bat / Start-Optimizer.bat # Clean Elevation Launchers (UTF-8, UAC Auto-Elevation)
 ├── Modules/
 │   ├── Safety.psm1                # System Restore Points, JSON Snapshots & Strict Allowlist
@@ -226,7 +226,7 @@ Your system's stability is our highest priority:
 
 ## 🧪 Verification & Automated Testing
 
-This repository includes an automated test suite with 63 assertions verifying module loading, snapshot creation, granular rollback integrity, hardware enumeration, and dry-run execution:
+This repository includes an automated test suite with 66 assertions verifying module loading, snapshot creation, granular rollback integrity, hardware enumeration, and dry-run execution:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\Test-Win11Optimizer.ps1
@@ -244,8 +244,11 @@ powershell -ExecutionPolicy Bypass -File .\Test-Win11Optimizer.ps1
   Testing [Preset: Light preset dry-run completes without error]... [PASS]
   Testing [Preset: Balanced preset dry-run completes without error]... [PASS]
   Testing [Preset: UltraGaming preset dry-run completes without error]... [PASS]
+  Testing [GamingLatency: Live Mouse and Keyboard Rollback with Win32 SPI synchronization]... [PASS]
+  Testing [GamingLatency: Laptop Guard battery detection and DC power profile adaptation]... [PASS]
+  Testing [SystemUI: Explorer Gallery Status handles HKCU policy and Restore-ExplorerGalleryVisibility NoRestart]... [PASS]
 ========================================================
-  TEST RESULTS: Passed: 63 | Failed: 0
+  TEST RESULTS: Passed: 66 | Failed: 0
 ========================================================
 ```
 
@@ -284,7 +287,7 @@ Launch `Win11Optimizer.ps1 -Mode Rollback` and select option `[8] Full Rollback 
 - [x] Windows 11 24H2 full compatibility
 - [x] NT-Kernel in-memory Standby RAM Cleaner
 - [x] Granular 2-Tier Snapshot & Rollback Engine with per-parameter tracking
-- [x] Automated 63-assertion Smoke & Integrity Test Suite
+- [x] Automated 66-assertion Smoke & Integrity Test Suite
 - [x] 3-Tier Preset Architecture (Light, Balanced, Ultra Gaming) with Laptop Guard
 - [x] Anycast DNS Benchmark & DoH Switcher
 - [ ] Exportable HTML/JSON Health Audit Reports

@@ -692,7 +692,9 @@ function Set-ExplorerGalleryVisibility {
 
 function Restore-ExplorerGalleryVisibility {
     [CmdletBinding()]
-    param()
+    param(
+        [switch]$NoRestart = $false
+    )
 
     Write-Host "[Explorer Gallery] Откат видимости узла 'Галерея'..." -ForegroundColor Yellow
     $restored = Restore-RegistrySnapshot -Category "ExplorerGallery"
@@ -708,6 +710,10 @@ function Restore-ExplorerGalleryVisibility {
         if (Test-Path $clsidKey) { Remove-ItemProperty -Path $clsidKey -Name "System.IsPinnedToNameSpaceTree" -ErrorAction SilentlyContinue }
         Write-Host "[Explorer Gallery] Параметры Галереи удалены (дефолт Windows)." -ForegroundColor Green
     }
+
+    if (-not $NoRestart) {
+        Restart-ExplorerGraceful
+    }
 }
 
 function Get-ExplorerGalleryStatus {
@@ -717,13 +723,16 @@ function Get-ExplorerGalleryStatus {
     $folderGuid = "{e88865ea-0e1c-4e20-9aa6-ed353b747f69}"
     $clsidGuid  = "{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}"
     $hklmPropBag = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FolderDescriptions\$folderGuid\PropertyBag"
+    $hkcuPropBag = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FolderDescriptions\$folderGuid\PropertyBag"
     $clsidKey    = "HKCU:\Software\Classes\CLSID\$clsidGuid"
 
     $isHidden = $false
     try {
         $p1 = Get-ItemProperty -Path $hklmPropBag -ErrorAction SilentlyContinue
         $p2 = Get-ItemProperty -Path $clsidKey -ErrorAction SilentlyContinue
+        $p3 = Get-ItemProperty -Path $hkcuPropBag -ErrorAction SilentlyContinue
         if (($p1 -and $p1.PSObject.Properties['ThisPCPolicy'] -and $p1.ThisPCPolicy -eq "Hide") -or `
+            ($p3 -and $p3.PSObject.Properties['ThisPCPolicy'] -and $p3.ThisPCPolicy -eq "Hide") -or `
             ($p2 -and $p2.PSObject.Properties['System.IsPinnedToNameSpaceTree'] -and $p2.'System.IsPinnedToNameSpaceTree' -eq 0)) {
             $isHidden = $true
         }

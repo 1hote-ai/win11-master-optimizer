@@ -602,12 +602,18 @@ Assert-Test "Diagnostics: Health-Check Audit Recommendations & FixMenu validity"
     $hasRecs = @($audit | Where-Object { [string]::IsNullOrWhiteSpace($_.Recommendation) -or [string]::IsNullOrWhiteSpace($_.FixMenu) }).Count -eq 0
     $hasFunc = (Get-Command Show-OptimizationHealthCheck -ErrorAction SilentlyContinue) -ne $null
     
-    # Проверка, что все FixMenu ссылаются на реальные пункты главного меню ([1]-[8])
+    # Строгая проверка: все FixMenu ссылаются на реальные пункты главного меню ([4]-[8]) и пресет [1] (Ultra Gaming)
     $allFixMenusValid = $true
     foreach ($item in $audit) {
-        if ($item.FixMenu -notmatch 'Главное меню -> Пункт \[(1|2|3|4|5|6|7|8)\]') {
+        if ($item.FixMenu -like "*Супер-буст*" -or $item.FixMenu -like "*Пункт [2] (Супер-буст)*" -or $item.FixMenu -like "*Пункт [3] (Жёсткая оптимизация)*") {
+            $allFixMenusValid = $false
+            Write-Host "`n  [FAIL Detail] Устаревший FixMenu у '$($item.Setting)': $($item.FixMenu)" -ForegroundColor Red
+            break
+        }
+        if ($item.FixMenu -notmatch 'Главное меню -> Пункт \[(4|5|6|7|8)\]') {
             $allFixMenusValid = $false
             Write-Host "`n  [FAIL Detail] Некорректный FixMenu у '$($item.Setting)': $($item.FixMenu)" -ForegroundColor Red
+            break
         }
     }
 
@@ -777,6 +783,86 @@ Assert-Test "Preset: UltraGaming preset dry-run completes without error" {
 Assert-Test "Preset: Backward compatible AutoGaming mode dry-run completes without error" {
     . (Join-Path $ScriptDir "Win11Optimizer.ps1") -Mode AutoGaming -DryRun -NoRestorePoint
     $true
+}
+
+Assert-Test "GamingLatency: Live Mouse and Keyboard Rollback with Win32 SPI synchronization" {
+    $mouseKey = "HKCU:\Control Panel\Mouse"
+    $kbKey = "HKCU:\Control Panel\Keyboard"
+    $accKey = "HKCU:\Control Panel\Accessibility\Keyboard Response"
+
+    # Сохраняем исходные пользовательские настройки
+    $origMS = (Get-ItemProperty $mouseKey -ErrorAction SilentlyContinue).MouseSpeed
+    $origMT1 = (Get-ItemProperty $mouseKey -ErrorAction SilentlyContinue).MouseThreshold1
+    $origMT2 = (Get-ItemProperty $mouseKey -ErrorAction SilentlyContinue).MouseThreshold2
+    $origKD = (Get-ItemProperty $kbKey -ErrorAction SilentlyContinue).KeyboardDelay
+    $origKS = (Get-ItemProperty $kbKey -ErrorAction SilentlyContinue).KeyboardSpeed
+
+    try {
+        # Задаем кастомные значения перед тестом
+        Set-ItemProperty -Path $mouseKey -Name "MouseSpeed" -Value "2" -Type String -Force
+        Set-ItemProperty -Path $mouseKey -Name "MouseThreshold1" -Value "8" -Type String -Force
+        Set-ItemProperty -Path $mouseKey -Name "MouseThreshold2" -Value "12" -Type String -Force
+        Set-ItemProperty -Path $kbKey -Name "KeyboardDelay" -Value "2" -Type String -Force
+        Set-ItemProperty -Path $kbKey -Name "KeyboardSpeed" -Value "20" -Type String -Force
+
+        # Применяем оптимизации
+        Set-RawMouseInput
+        Set-KeyboardResponseTuning
+
+        $optM = Get-ItemProperty $mouseKey
+        $optK = Get-ItemProperty $kbKey
+        $setOk = ($optM.MouseSpeed -eq "0" -and $optM.MouseThreshold1 -eq "0" -and $optM.MouseThreshold2 -eq "0" -and `
+                  $optK.KeyboardDelay -eq "0" -and $optK.KeyboardSpeed -eq "31")
+
+        # Откатываем обратно
+        Restore-RawMouseInput
+        Restore-KeyboardResponseTuning
+
+        $restM = Get-ItemProperty $mouseKey
+        $restK = Get-ItemProperty $kbKey
+        $restoreOk = ($restM.MouseSpeed -eq "2" -and $restM.MouseThreshold1 -eq "8" -and $restM.MouseThreshold2 -eq "12" -and `
+                      $restK.KeyboardDelay -eq "2" -and $restK.KeyboardSpeed -eq "20")
+
+        $setOk -and $restoreOk
+    } finally {
+        # Восстановление чистых исходных значений системы
+        if ($null -ne $origMS) { Set-ItemProperty -Path $mouseKey -Name "MouseSpeed" -Value $origMS -Type String -Force }
+        if ($null -ne $origMT1) { Set-ItemProperty -Path $mouseKey -Name "MouseThreshold1" -Value $origMT1 -Type String -Force }
+        if ($null -ne $origMT2) { Set-ItemProperty -Path $mouseKey -Name "MouseThreshold2" -Value $origMT2 -Type String -Force }
+        if ($null -ne $origKD) { Set-ItemProperty -Path $kbKey -Name "KeyboardDelay" -Value $origKD -Type String -Force }
+        if ($null -ne $origKS) { Set-ItemProperty -Path $kbKey -Name "KeyboardSpeed" -Value $origKS -Type String -Force }
+    }
+}
+
+Assert-Test "GamingLatency: Laptop Guard battery detection and DC power profile adaptation" {
+    $isLaptop = Test-IsLaptopDevice
+    $onBattery = Test-IsOnBatteryPower
+    $planRes = Enable-UltimatePerformancePlan -DryRun
+    
+    ($isLaptop -is [bool]) -and ($onBattery -is [bool]) -and ($planRes -eq $true)
+}
+
+Assert-Test "SystemUI: Explorer Gallery Status handles HKCU policy and Restore-ExplorerGalleryVisibility NoRestart" {
+    $folderGuid = "{e88865ea-0e1c-4e20-9aa6-ed353b747f69}"
+    $hkcuPropBag = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FolderDescriptions\$folderGuid\PropertyBag"
+    $origPolicy = (Get-ItemProperty $hkcuPropBag -ErrorAction SilentlyContinue).ThisPCPolicy
+
+    try {
+        if (-not (Test-Path $hkcuPropBag)) { New-Item -Path $hkcuPropBag -Force | Out-Null }
+        Set-ItemProperty -Path $hkcuPropBag -Name "ThisPCPolicy" -Value "Hide" -Type String -Force
+
+        $stat = Get-ExplorerGalleryStatus
+        $detectOk = $stat.Hidden -eq $true
+
+        Restore-ExplorerGalleryVisibility -NoRestart
+        $detectOk
+    } finally {
+        if ($origPolicy) {
+            Set-ItemProperty -Path $hkcuPropBag -Name "ThisPCPolicy" -Value $origPolicy -Type String -Force
+        } else {
+            Remove-ItemProperty -Path $hkcuPropBag -Name "ThisPCPolicy" -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 # 10. Live Dynamic Status Query & Indicator Tests

@@ -29,14 +29,14 @@ Welcome to the first public beta of **Windows 11 Master Optimizer**! This releas
 - `Modules/GpuDisplay.psm1`: DWM MPO toggle (`OverlayTestMode = 5`), HAGS, DirectX windowed optimizations, GPU driver protection, shader cache clean.
 - `Modules/Debloat.psm1`: Windows 11 24H2 Recall, Copilot, Bing Start search, Telemetry disable, Safe UWP bloatware removal with strict whitelist.
 - `Modules/SystemUI.psm1`: Windows 10 classic context menu, Explorer enhancements, USB Selective Suspend disable, Automatic Maintenance toggle.
-- `Modules/Diagnostics.psm1`: 26-point System Health Audit, Win32 timer resolution query, live DPC/ISR sampling.
+- `Modules/Diagnostics.psm1`: 31-point System Health Audit, Win32 timer resolution query, live DPC/ISR sampling.
 - `Modules/AppInstaller.psm1`: Native `winget` silent package installer with 25 curated essentials.
 
 ### 2. Multi-Entry Launchers
 - `Start.bat` & `Start-Optimizer.bat`: Multi-entry launchers supporting UTF-8 (`chcp 65001`), UAC automatic elevation, and relative path resolution.
 
 ### 3. Automated Test Suite
-- `Test-Win11Optimizer.ps1`: Automated test harness running 63 assertions verifying module loading, snapshot creation, exact state capture, strict allowlist security validation, granular rollback integrity, hardware enumeration, and dry-run execution of all 3 optimization presets with Exit Code 0.
+- `Test-Win11Optimizer.ps1`: Automated test harness running 66 assertions verifying module loading, snapshot creation, exact state capture, strict allowlist security validation, granular rollback integrity, hardware enumeration, and dry-run execution of all 3 optimization presets with Exit Code 0.
 
 ### 4. 3-Tier Optimization Presets
 - **Tier 1 (Light):** Zero breakage office & privacy profile, keeping Print Spooler, Bluetooth, Network Discovery, and USB power savings strictly intact.
@@ -68,7 +68,7 @@ Release archives built via `tools/Build-ReleasePackage.ps1` include automated SH
 
 | Asset Name | Size | SHA-256 Checksum |
 | :--- | :--- | :--- |
-| `win11-master-optimizer-v0.1.0-beta.zip` | 202.60 KB | `C6DEEACE9EA81E1C95FE037A49E9B25ECC4C069E713D2356C2DDFE3250D79303` |
+| `win11-master-optimizer-v0.1.0-beta.zip` | 204.77 KB | `743D45628CE756D17C48E4D69BC3A0B40793930F3CB81A517FA08CC0C417FB95` |
 
 *To verify checksum in PowerShell:*
 ```powershell

@@ -129,7 +129,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($gpu -and $gpu.MsiActive) { "ВКЛЮЧЕНО" } else { "ВЫКЛЮЧЕНО" }
         Details        = if ($gpu) { "$($gpu.Name) [Приоритет: $($gpu.PriorityText)]" } else { "GPU не найден" }
         Optimal        = [bool]($gpu -and $gpu.MsiActive)
-        FixMenu        = "Главное меню -> Пункт [3] (Жёсткая оптимизация) -> [1] или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [4] (CPU, кванты и задержки) -> [1] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Перевести видеокарту в режим MSI с высоким приоритетом для устранения задержек очереди IRQ."
     })
 
@@ -141,7 +141,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($nic -and $nic.MsiActive) { "ВКЛЮЧЕНО" } else { "ВЫКЛЮЧЕНО" }
         Details        = if ($nic) { "$($nic.Name) [Приоритет: $($nic.PriorityText)]" } else { "Сетевая карта не найдена" }
         Optimal        = [bool]($nic -and $nic.MsiActive)
-        FixMenu        = "Главное меню -> Пункт [3] (Жёсткая оптимизация) -> [1] или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [4] (CPU, кванты и задержки) -> [1] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Включить MSI Mode для сетевой карты для ускоренной обработки пакетов."
     })
 
@@ -160,7 +160,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($audioActive) { "ВКЛЮЧЕНО" } else { "ВЫКЛЮЧЕНО / ЧАСТИЧНО" }
         Details        = $audioDetails
         Optimal        = [bool]$audioActive
-        FixMenu        = "Главное меню -> Пункт [3] (Жёсткая оптимизация) -> [1] или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [4] (CPU, кванты и задержки) -> [1] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Перевести контроллеры звука в MSI Mode для предотвращения щелчков звука и DPC лагов."
     })
 
@@ -182,7 +182,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($hasNagleDisabled) { "ОТКЛЮЧЕН (Оптимизировано)" } else { "АКТИВЕН (Дефолт)" }
         Details        = if ($hasNagleDisabled) { "Мгновенная отправка пакетов без задержек" } else { "Пакеты буферизуются Windows" }
         Optimal        = [bool]$hasNagleDisabled
-        FixMenu        = "Главное меню -> Пункт [4] (Игровой сетевой стек) или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [5] (Игровой сетевой стек) -> [1] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Отключить буферизацию пакетов TCP для мгновенного отклика в онлайн-шутерах."
     })
 
@@ -195,7 +195,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($isNetThrottlingOff) { "ОТКЛЮЧЕН (0xFFFFFFFF)" } else { "АКТИВЕН" }
         Details        = "Ограничение скорости сетевых пакетов при мультимедиа"
         Optimal        = [bool]$isNetThrottlingOff
-        FixMenu        = "Главное меню -> Пункт [4] (Игровой сетевой стек) или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [5] (Игровой сетевой стек) -> [2] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Снять встроенный сетевой троттлинг Windows 11 (значение 0xFFFFFFFF)."
     })
 
@@ -216,7 +216,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($eeeOptimal) { "ОТКЛЮЧЕНО (Оптимально)" } else { "ВКЛЮЧЕНО (Задержки)" }
         Details        = "Отключение спящих режимов предотвращает микрофризы и джиттер"
         Optimal        = [bool]$eeeOptimal
-        FixMenu        = "Главное меню -> Пункт [4] (Игровой сетевой стек) или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [5] (Игровой сетевой стек) -> [2] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Отключить энергосберегающие режимы Ethernet (EEE/ULP) во избежание джиттера."
     })
 
@@ -228,7 +228,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($isSysRespZero) { "0% (100% ресурсов играм)" } else { "20% (Windows дефолт)" }
         Details        = "Резервация мощности процессора под системные задачи"
         Optimal        = [bool]$isSysRespZero
-        FixMenu        = "Главное меню -> Пункт [3] -> [4] или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [4] (CPU, кванты и задержки) -> [4] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Выставить 0% системного резерва, отдав 100% мощности процессора игре."
     })
 
@@ -242,7 +242,7 @@ function Get-SystemOptimizationAudit {
         Status         = "$win32Pri $(if ($win32Pri -eq 38) { '(0x26 Gaming Foreground)' } elseif ($win32Pri -eq 2) { '(Дефолт)' } else { '' })"
         Details        = "Квантование времени процессора для активного окна"
         Optimal        = [bool]$isWin32Optimal
-        FixMenu        = "Главное меню -> Пункт [3] -> [2] или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [4] (CPU, кванты и задержки) -> [2] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Выставить кванты 38 (0x26) для наивысшего приоритета активного игрового процесса."
     })
 
@@ -255,7 +255,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($isPowerThrottlingOff) { "ОТКЛЮЧЕН" } else { "АКТИВЕН (Windows дефолт)" }
         Details        = "Снижение частот для фоновых процессов и игр"
         Optimal        = [bool]$isPowerThrottlingOff
-        FixMenu        = "Главное меню -> Пункт [3] -> [2] или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [4] (CPU, кванты и задержки) -> [2] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Отключить троттлинг ядер и потоков для предотвращения просадок тактовой частоты."
     })
 
@@ -267,7 +267,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($vbs.VbsActive) { "ВКЛЮЧЕНА (Защита)" } else { "ВЫКЛЮЧЕНА (+FPS)" }
         Details        = if ($vbs.VbsActive) { "Замедляет игры на 5-15% на некоторых CPU" } else { "Максимальная производительность" }
         Optimal        = [bool](-not $vbs.VbsActive)
-        FixMenu        = "Главное меню -> Пункт [3] (Жёсткая оптимизация) -> [6] (Изоляция ядра)"
+        FixMenu        = "Главное меню -> Пункт [4] (CPU, кванты и задержки) -> [6] (Изоляция ядра)"
         Recommendation = "Отключить VBS/HVCI для прироста 5-15% FPS (по желанию, снижает защиту ядра)."
     })
 
@@ -280,7 +280,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($isGameDvrOff) { "ОТКЛЮЧЕНА" } else { "АКТИВНА" }
         Details        = "Устраняет микрофризы и дропы FPS"
         Optimal        = [bool]$isGameDvrOff
-        FixMenu        = "Главное меню -> Пункт [7] (Интерфейс) -> [3] или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [8] (Интерфейс и система) -> [3] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Отключить скрытую фоновую видеозапись GameDVR для устранения микрофризов."
     })
 
@@ -293,7 +293,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($isCopilotOff) { "ОТКЛЮЧЕН" } else { "АКТИВЕН" }
         Details        = "AI ассистент и фоновые процессы"
         Optimal        = [bool]$isCopilotOff
-        FixMenu        = "Главное меню -> Пункт [6] (Debloat) -> [2] или Пункт [6] -> [7] (Полный Debloat)"
+        FixMenu        = "Главное меню -> Пункт [7] (Smart Debloat) -> [2] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Отключить Windows Copilot и фоновые процессы AI для освобождения оперативной памяти."
     })
 
@@ -306,7 +306,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($isBingOff) { "ОТКЛЮЧЕН" } else { "АКТИВЕН" }
         Details        = "Поиск ищет только локальные файлы без задержек"
         Optimal        = [bool]$isBingOff
-        FixMenu        = "Главное меню -> Пункт [6] (Debloat) -> [3] или Пункт [6] -> [7] (Полный Debloat)"
+        FixMenu        = "Главное меню -> Пункт [7] (Smart Debloat) -> [3] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Отключить веб-поиск Bing для мгновенного отклика меню Пуск без отправки запросов в сеть."
     })
 
@@ -319,7 +319,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($isTelemetryOff) { "ОТКЛЮЧЕНА" } else { "РАБОТАЕТ" }
         Details        = "Фоновая отправка диагностических логов"
         Optimal        = [bool]$isTelemetryOff
-        FixMenu        = "Главное меню -> Пункт [6] (Debloat) -> [5] или Пункт [6] -> [7] (Полный Debloat)"
+        FixMenu        = "Главное меню -> Пункт [7] (Smart Debloat) -> [5] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Отключить службу сбора телеметрии для снятия фоновой нагрузки с диска и процессора."
     })
 
@@ -331,7 +331,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($isClassicMenu) { "АКТИВНО (Win10 Style)" } else { "СТАНДАРТНОЕ (Win11)" }
         Details        = "Полное контекстное меню без 'Показать дополнительные параметры'"
         Optimal        = [bool]$isClassicMenu
-        FixMenu        = "Главное меню -> Пункт [7] (Интерфейс) -> [1] или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [8] (Интерфейс и система) -> [1] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Включить классическое меню проводника без медленного скрытого клика 'Дополнительно'."
     })
 
@@ -344,7 +344,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($isCompact) { "ВКЛЮЧЕНО" } else { "СТАНДАРТНЫЙ" }
         Details        = "Уменьшенные отступы в Проводнике для быстрого доступа"
         Optimal        = [bool]$isCompact
-        FixMenu        = "Главное меню -> Пункт [7] (Интерфейс) -> [2] или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [8] (Интерфейс и система) -> [2] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Включить компактный вид папок для быстрого и удобного обзора файлов."
     })
 
@@ -357,7 +357,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($isShOff) { "ОТКЛЮЧЕН" } else { "АКТИВЕН" }
         Details        = "Убирает веб-картинки и анимации из строки поиска панели задач"
         Optimal        = [bool]$isShOff
-        FixMenu        = "Главное меню -> Пункт [7] (Интерфейс) -> [2] или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [8] (Интерфейс и система) -> [2] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Отключить загрузку веб-картинок и рекламы в поле поиска на панели задач."
     })
 
@@ -369,7 +369,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($mpoStatus.Disabled) { "ОТКЛЮЧЕН (Оптимально)" } else { "ВКЛЮЧЕН (Дефолт)" }
         Details        = $mpoStatus.Description
         Optimal        = [bool]$mpoStatus.Disabled
-        FixMenu        = "Главное меню -> Пункт [5] (GPU и Дисплей) -> [1] или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [6] (GPU, дисплей и кэш шейдеров) -> [1] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Отключить MPO (OverlayTestMode=5) для устранения микро-статтеров и мерцаний в OBS/Discord/играх."
     })
 
@@ -381,7 +381,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($hagsStatus.Enabled) { "ВКЛЮЧЕН (Оптимально)" } else { "ВЫКЛЮЧЕН / ДЕФОЛТ" }
         Details        = $hagsStatus.Description
         Optimal        = [bool]$hagsStatus.Enabled
-        FixMenu        = "Главное меню -> Пункт [5] (GPU и Дисплей) -> [2] или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [6] (GPU, дисплей и кэш шейдеров) -> [2] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Включить аппаратное ускорение HAGS для минимальной задержки отрисовки и DLSS 3 Frame Gen."
     })
 
@@ -394,7 +394,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($isDxOpt) { "ВКЛЮЧЕНО (AutoPlayMode=1)" } else { "ВЫКЛЮЧЕНО" }
         Details        = "Снижение задержки ввода и поддержка VRR/G-Sync в Borderless окне"
         Optimal        = [bool]$isDxOpt
-        FixMenu        = "Главное меню -> Пункт [5] (GPU и Дисплей) -> [3] или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [6] (GPU, дисплей и кэш шейдеров) -> [3] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Включить 'Оптимизации для игр в оконном режиме' DirectX для ультра-низкого инпут-лага."
     })
 
@@ -407,7 +407,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($isWuDrvOff) { "ЗАЩИЩЕН (ExcludeWUDrivers=1)" } else { "НЕ ЗАЩИЩЕН" }
         Details        = "Предотвращает внезапную замену стабильного кастомного видеодрайвера"
         Optimal        = [bool]$isWuDrvOff
-        FixMenu        = "Главное меню -> Пункт [5] (GPU и Дисплей) -> [4] или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [6] (GPU, дисплей и кэш шейдеров) -> [4] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Заблокировать автоматическую замену видеодрайвера через Центр обновлений Windows."
     })
 
@@ -430,7 +430,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($isFastDns) { "ОПТИМИЗИРОВАН ($dnsProviderLabel)" } else { "СТАНДАРТНЫЙ ($dnsProviderLabel)" }
         Details        = "Быстрый Anycast DNS снижает пинг и время подключения к игровым серверам"
         Optimal        = [bool]$isFastDns
-        FixMenu        = "Главное меню -> Пункт [4] (Игровой сетевой стек) -> [3] (DNS Switcher)"
+        FixMenu        = "Главное меню -> Пункт [5] (Игровой сетевой стек) -> [3] (DNS Switcher)"
         Recommendation = "Установить быстрый игровой DNS (Cloudflare, Quad9, AdGuard) с поддержкой DoH."
     })
 
@@ -443,7 +443,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($isMaintOff) { "ОТКЛЮЧЕНО (Оптимально)" } else { "АКТИВНО (Дефолт)" }
         Details        = "Отключение предотвращает фоновую нагрузку на CPU и SSD во время игр"
         Optimal        = [bool]$isMaintOff
-        FixMenu        = "Главное меню -> Пункт [7] (Интерфейс и система) -> [6] или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [8] (Интерфейс и система) -> [6] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Отключить автоматическое обслуживание во избежание внезапных просадок FPS."
     })
 
@@ -456,7 +456,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($isRecHidden) { "СКРЫТ (Оптимально)" } else { "ОТОБРАЖАЕТСЯ" }
         Details        = "Убирает спам недавно открытых файлов и предложений из меню Пуск"
         Optimal        = [bool]$isRecHidden
-        FixMenu        = "Главное меню -> Пункт [7] (Интерфейс и система) -> [2] или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [8] (Интерфейс и система) -> [2] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Скрыть пустой блок рекомендаций для чистого и отзывчивого меню Пуск."
     })
 
@@ -476,7 +476,7 @@ function Get-SystemOptimizationAudit {
         Status         = if (-not $hasNvGpu) { "Н/Д (GPU не NVIDIA)" } elseif ($isHdcpDisabled) { "ОТКЛЮЧЕН (Оптимально)" } else { "АКТИВЕН (Дефолт)" }
         Details        = if (-not $hasNvGpu) { "Применяется только для видеокарт NVIDIA" } elseif ($isHdcpDisabled) { "Устранены задержки HDCP рукопожатий" } else { "Фоновые DRM рукопожатия GPU активны" }
         Optimal        = [bool](-not $hasNvGpu -or $isHdcpDisabled)
-        FixMenu        = "Главное меню -> Пункт [5] (GPU и Дисплей) -> [5] или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [6] (GPU, дисплей и кэш шейдеров) -> [5] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Отключить HDCP DRM для устранения периодических микро-задержек видеокарты в играх."
     })
 
@@ -490,7 +490,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($isHomeHidden) { "СКРЫТ (Оптимально)" } else { "ОТОБРАЖАЕТСЯ" }
         Details        = "Очищает дерево навигации Проводника от лишних системных папок"
         Optimal        = [bool]$isHomeHidden
-        FixMenu        = "Главное меню -> Пункт [7] (Интерфейс и система) -> [7] или [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [8] (Интерфейс и система) -> [7] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Скрыть раздел 'Главная' из Проводника для чистого классического интерфейса."
     })
 
@@ -514,7 +514,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($mouseStatus.Optimal) { "ОТКЛЮЧЕНА (1:1 Raw Input)" } else { "АКТИВНА (Дефолт)" }
         Details        = $mouseStatus.Description
         Optimal        = [bool]$mouseStatus.Optimal
-        FixMenu        = "Главное меню -> Пункт [4] (CPU & задержки) или Пункт [1] (Ultra Gaming)"
+        FixMenu        = "Главное меню -> Пункт [4] (CPU, кванты и задержки) -> [7] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Отключить акселерацию мыши для истинного 1:1 соответствия движений сенсора и прицела в играх."
     })
 
@@ -526,7 +526,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($kbStatus.Optimal) { "ОПТИМИЗИРОВАН (Delay=0, Speed=31)" } else { "СТАНДАРТНЫЙ (Дефолт)" }
         Details        = $kbStatus.Description
         Optimal        = [bool]$kbStatus.Optimal
-        FixMenu        = "Главное меню -> Пункт [4] (CPU & задержки) или Пункт [1] (Ultra Gaming)"
+        FixMenu        = "Главное меню -> Пункт [4] (CPU, кванты и задержки) -> [8] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Снизить задержку повтора клавиш и увеличить скорость для мгновенного отклика при стрейфах."
     })
 
@@ -538,7 +538,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($gameModeStatus.Optimal) { "ВКЛЮЧЕН (AutoGameModeEnabled=1)" } else { "ОТКЛЮЧЕН / НЕ НАСТРОЕН" }
         Details        = $gameModeStatus.Description
         Optimal        = [bool]$gameModeStatus.Optimal
-        FixMenu        = "Главное меню -> Пункт [8] (Интерфейс и система) или Пункт [1] (Ultra Gaming)"
+        FixMenu        = "Главное меню -> Пункт [8] (Интерфейс и система) -> [9] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Принудительно включить Game Mode для выделения максимального приоритета планировщика играм."
     })
 
@@ -550,7 +550,7 @@ function Get-SystemOptimizationAudit {
         Status         = if ($galleryStatus.Optimal) { "СКРЫТ (Оптимально)" } else { "ОТОБРАЖАЕТСЯ" }
         Details        = $galleryStatus.Description
         Optimal        = [bool]$galleryStatus.Optimal
-        FixMenu        = "Главное меню -> Пункт [8] (Интерфейс и система) или Пункт [1] (Ultra Gaming)"
+        FixMenu        = "Главное меню -> Пункт [8] (Интерфейс и система) -> [8] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Скрыть тяжелый узел Галереи для устранения фоновой индексации фото и ускорения Проводника."
     })
 

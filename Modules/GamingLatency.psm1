@@ -261,7 +261,8 @@ function Test-IsLaptopDevice {
         $enclosure = Get-CimInstance -ClassName Win32_SystemEnclosure -ErrorAction SilentlyContinue
         if ($enclosure -and $enclosure.ChassisTypes) {
             $laptopChassis = @(8, 9, 10, 11, 12, 14, 18, 21, 31, 32)
-            foreach ($t in $enclosure.ChassisTypes) {
+            $enclosureChassis = @($enclosure.ChassisTypes)
+            foreach ($t in $enclosureChassis) {
                 if ($t -in $laptopChassis) {
                     return $true
                 }
@@ -269,6 +270,28 @@ function Test-IsLaptopDevice {
         }
     } catch {
         Write-Verbose "Laptop detection check error: $_"
+    }
+    return $false
+}
+
+function Test-IsOnBatteryPower {
+    [CmdletBinding()]
+    param()
+
+    try {
+        $batteries = @(Get-CimInstance -ClassName Win32_Battery -ErrorAction SilentlyContinue)
+        foreach ($b in $batteries) {
+            # BatteryStatus 1 = Discharging (работает от батареи)
+            if ($b.BatteryStatus -eq 1) {
+                return $true
+            }
+        }
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+        if ([System.Windows.Forms.SystemInformation]::PowerStatus.PowerLineStatus -eq [System.Windows.Forms.PowerLineStatus]::Offline) {
+            return $true
+        }
+    } catch {
+        Write-Verbose "Battery power check notice: $_"
     }
     return $false
 }
@@ -282,6 +305,11 @@ function Enable-UltimatePerformancePlan {
     $isLaptop = Test-IsLaptopDevice
     if ($isLaptop) {
         Write-Host "  [Laptop Guard] Обнаружена батарея (ноутбук/портативное устройство)!" -ForegroundColor Yellow
+        $onBattery = Test-IsOnBatteryPower
+        if ($onBattery) {
+            Write-Host "  [Laptop Guard WARNING] Устройство в данный момент работает от аккумулятора (DC)!" -ForegroundColor Red
+            Write-Host "  [Laptop Guard] Для достижения максимальной частоты и защиты батареи подключите зарядное устройство (AC)." -ForegroundColor Yellow
+        }
         Write-Host "  [Laptop Guard] Внимание: режим максимальной производительности адаптирован только для питания от сети (AC)." -ForegroundColor Yellow
         Write-Host "  [Laptop Guard] Энергосбережение при работе от аккумулятора (DC) сохранено во избежание ускоренного износа." -ForegroundColor Yellow
     }
@@ -336,6 +364,19 @@ function Enable-UltimatePerformancePlan {
         if ($targetGuid) {
             powercfg -setactive $targetGuid 2>&1 | Out-Null
             Write-Host "  [OK] Схема 'Максимальная производительность' ($targetGuid) успешно активирована!" -ForegroundColor Green
+
+            if ($isLaptop) {
+                # Laptop Guard: Адаптация параметров DC для защиты аккумулятора от быстрого разряда
+                powercfg -setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES 5 2>&1 | Out-Null
+                powercfg -setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES1 5 2>&1 | Out-Null
+                powercfg -setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMIN 5 2>&1 | Out-Null
+                powercfg -setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFEPP 50 2>&1 | Out-Null
+                powercfg -setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 1 2>&1 | Out-Null
+                powercfg -change -monitor-timeout-dc 10 2>&1 | Out-Null
+                powercfg -change -standby-timeout-dc 20 2>&1 | Out-Null
+                powercfg -setactive SCHEME_CURRENT 2>&1 | Out-Null
+                Write-Host "  [Laptop Guard] Параметры питания от батареи (DC) адаптированы: включен энергосберегающий профиль CPU и автосон." -ForegroundColor Green
+            }
             return $true
         } else {
             Write-Host "  [WARNING] Не удалось разблокировать схему питания. Оптимизируем текущую схему." -ForegroundColor Yellow
@@ -400,8 +441,20 @@ function Set-CpuGamingScheduling {
         powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFEPP 0 2>&1 | Out-Null
         powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMIN 100 2>&1 | Out-Null
         powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 2 2>&1 | Out-Null
+
+        if ($isLaptop) {
+            # Laptop Guard: сохраняем энергоэффективный профиль для батареи (DC)
+            powercfg -setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES 5 2>&1 | Out-Null
+            powercfg -setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES1 5 2>&1 | Out-Null
+            powercfg -setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMIN 5 2>&1 | Out-Null
+            powercfg -setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFEPP 50 2>&1 | Out-Null
+            powercfg -setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 1 2>&1 | Out-Null
+        }
         powercfg -setactive SCHEME_CURRENT 2>&1 | Out-Null
-        Write-Host "  [OK] Core Parking отключен (100% ядер активны, PERFEPP=0 максимальная производительность)" -ForegroundColor Green
+        Write-Host "  [OK] Core Parking отключен для сети (100% ядер активны, PERFEPP=0 максимальная производительность)" -ForegroundColor Green
+        if ($isLaptop) {
+            Write-Host "  [Laptop Guard] Энергосберегающий профиль CPU для работы от батареи (DC) полностью сохранен." -ForegroundColor Green
+        }
     }
     catch {
         Write-Host "  [ERROR] Ошибка оптимизации CPU: $($_.Exception.Message)" -ForegroundColor Red
@@ -863,14 +916,49 @@ function Restore-RawMouseInput {
 
     Write-Host "[Mouse Optimizer] Откат параметров мыши к исходному состоянию..." -ForegroundColor Yellow
     $restored = Restore-RegistrySnapshot -Category "MouseInput"
+    $mouseKey = "HKCU:\Control Panel\Mouse"
     if (-not $restored.Success) {
-        $mouseKey = "HKCU:\Control Panel\Mouse"
         if (Test-Path $mouseKey) {
             Set-ItemProperty -Path $mouseKey -Name "MouseSpeed" -Value "1" -Type String -Force -ErrorAction SilentlyContinue
             Set-ItemProperty -Path $mouseKey -Name "MouseThreshold1" -Value "6" -Type String -Force -ErrorAction SilentlyContinue
             Set-ItemProperty -Path $mouseKey -Name "MouseThreshold2" -Value "10" -Type String -Force -ErrorAction SilentlyContinue
         }
         Write-Host "[Mouse Optimizer] Применены стандартные значения Windows (MouseSpeed=1, Threshold1=6, Threshold2=10)." -ForegroundColor Green
+    }
+
+    # Вызов Win32 SystemParametersInfo для немедленной синхронизации с текущей сессией
+    try {
+        $p = Get-ItemProperty -Path $mouseKey -ErrorAction SilentlyContinue
+        $speed = if ($p -and $null -ne $p.PSObject.Properties['MouseSpeed']) { [int]$p.MouseSpeed } else { 1 }
+        $t1 = if ($p -and $null -ne $p.PSObject.Properties['MouseThreshold1']) { [int]$p.MouseThreshold1 } else { 6 }
+        $t2 = if ($p -and $null -ne $p.PSObject.Properties['MouseThreshold2']) { [int]$p.MouseThreshold2 } else { 10 }
+
+        if (-not ([System.Management.Automation.PSTypeName]'MouseNative').Type) {
+            $user32Type = @"
+using System;
+using System.Runtime.InteropServices;
+
+public class MouseNative {
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, IntPtr pvParam, uint fWinIni);
+}
+"@
+            Add-Type -TypeDefinition $user32Type -Language CSharp -ErrorAction SilentlyContinue
+        }
+        if ([System.Management.Automation.PSTypeName]'MouseNative'.Type) {
+            $mouseParams = [int[]]::new(3)
+            $mouseParams[0] = $speed
+            $mouseParams[1] = $t1
+            $mouseParams[2] = $t2
+            $handle = [System.Runtime.InteropServices.GCHandle]::Alloc($mouseParams, [System.Runtime.InteropServices.GCHandleType]::Pinned)
+            try {
+                [MouseNative]::SystemParametersInfo(0x001D, 0, $handle.AddrOfPinnedObject(), 0x01 -bor 0x02) | Out-Null
+            } finally {
+                $handle.Free()
+            }
+        }
+    } catch {
+        Write-Verbose "Native mouse restore SPI notice: $_"
     }
 }
 
@@ -930,6 +1018,28 @@ function Set-KeyboardResponseTuning {
         Set-ItemProperty -Path $accKey -Name "AutoRepeatDelay" -Value "250" -Type String -Force
         Set-ItemProperty -Path $accKey -Name "AutoRepeatRate" -Value "31" -Type String -Force
 
+        # Вызов Win32 SystemParametersInfo для мгновенного применения повтора клавиатуры без логаута
+        try {
+            if (-not ([System.Management.Automation.PSTypeName]'MouseNative').Type) {
+                $user32Type = @"
+using System;
+using System.Runtime.InteropServices;
+
+public class MouseNative {
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, IntPtr pvParam, uint fWinIni);
+}
+"@
+                Add-Type -TypeDefinition $user32Type -Language CSharp -ErrorAction SilentlyContinue
+            }
+            if ([System.Management.Automation.PSTypeName]'MouseNative'.Type) {
+                [MouseNative]::SystemParametersInfo(0x0017, [uint32]0, [IntPtr]::Zero, 0x01 -bor 0x02) | Out-Null
+                [MouseNative]::SystemParametersInfo(0x000B, [uint32]31, [IntPtr]::Zero, 0x01 -bor 0x02) | Out-Null
+            }
+        } catch {
+            Write-Verbose "Native keyboard tuning SPI notice: $_"
+        }
+
         Write-Host "  [OK] Задержка повтора клавиш снижена до минимума (KeyboardDelay=0, AutoRepeatDelay=250), скорость увеличена до максимума (31)." -ForegroundColor Green
     } catch {
         Write-Host "  [ERROR] Ошибка настройки параметров клавиатуры: $($_.Exception.Message)" -ForegroundColor Red
@@ -942,9 +1052,9 @@ function Restore-KeyboardResponseTuning {
 
     Write-Host "[Keyboard Optimizer] Откат параметров клавиатуры к исходному состоянию..." -ForegroundColor Yellow
     $restored = Restore-RegistrySnapshot -Category "KeyboardResponse"
+    $kbKey = "HKCU:\Control Panel\Keyboard"
+    $accKey = "HKCU:\Control Panel\Accessibility\Keyboard Response"
     if (-not $restored.Success) {
-        $kbKey = "HKCU:\Control Panel\Keyboard"
-        $accKey = "HKCU:\Control Panel\Accessibility\Keyboard Response"
         if (Test-Path $kbKey) {
             Set-ItemProperty -Path $kbKey -Name "KeyboardDelay" -Value "1" -Type String -Force -ErrorAction SilentlyContinue
             Set-ItemProperty -Path $kbKey -Name "KeyboardSpeed" -Value "31" -Type String -Force -ErrorAction SilentlyContinue
@@ -954,6 +1064,32 @@ function Restore-KeyboardResponseTuning {
             Set-ItemProperty -Path $accKey -Name "AutoRepeatRate" -Value "500" -Type String -Force -ErrorAction SilentlyContinue
         }
         Write-Host "[Keyboard Optimizer] Применены стандартные значения Windows (Delay=1, Speed=31, AutoRepeatDelay=1000, AutoRepeatRate=500)." -ForegroundColor Green
+    }
+
+    # Вызов Win32 SystemParametersInfo для отката параметров клавиатуры в памяти Windows
+    try {
+        $p = Get-ItemProperty -Path $kbKey -ErrorAction SilentlyContinue
+        $delay = if ($p -and $null -ne $p.PSObject.Properties['KeyboardDelay']) { [uint32]$p.KeyboardDelay } else { [uint32]1 }
+        $speed = if ($p -and $null -ne $p.PSObject.Properties['KeyboardSpeed']) { [uint32]$p.KeyboardSpeed } else { [uint32]31 }
+
+        if (-not ([System.Management.Automation.PSTypeName]'MouseNative').Type) {
+            $user32Type = @"
+using System;
+using System.Runtime.InteropServices;
+
+public class MouseNative {
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, IntPtr pvParam, uint fWinIni);
+}
+"@
+            Add-Type -TypeDefinition $user32Type -Language CSharp -ErrorAction SilentlyContinue
+        }
+        if ([System.Management.Automation.PSTypeName]'MouseNative'.Type) {
+            [MouseNative]::SystemParametersInfo(0x0017, $delay, [IntPtr]::Zero, 0x01 -bor 0x02) | Out-Null
+            [MouseNative]::SystemParametersInfo(0x000B, $speed, [IntPtr]::Zero, 0x01 -bor 0x02) | Out-Null
+        }
+    } catch {
+        Write-Verbose "Native keyboard restore SPI notice: $_"
     }
 }
 
@@ -980,7 +1116,7 @@ function Get-KeyboardResponseStatus {
 
 Export-ModuleMember -Function Get-PciMsiDevices, Set-GamingMsiMode, Restore-GamingMsiMode, `
                              Set-CpuGamingScheduling, Restore-CpuGamingScheduling, Get-ProcessorPowerSettingsState, `
-                             Enable-UltimatePerformancePlan, Restore-ActivePowerScheme, Test-IsLaptopDevice, `
+                             Enable-UltimatePerformancePlan, Restore-ActivePowerScheme, Test-IsLaptopDevice, Test-IsOnBatteryPower, `
                              Set-SystemResponsivenessGaming, Restore-SystemResponsiveness, `
                              Get-VbsStatus, Set-VbsState, Clear-StandbyRamAndWorkingSet, `
                              Get-MsiModeStatus, Get-CpuGamingSchedulingStatus, `

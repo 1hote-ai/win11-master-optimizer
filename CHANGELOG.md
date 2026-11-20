@@ -18,7 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - **Explorer Gallery Removal:** Heavy cloud photo gallery node removal from File Explorer navigation pane (`HKCU/HKLM FolderDescriptions\{e88865ea-0e1c-4e20-9aa6-ed353b747f69}\PropertyBag\ThisPCPolicy = Hide`).
   - **Game Mode Forced On:** Dedicated Game Mode activation (`HKCU:\Software\Microsoft\GameBar`: `AutoGameModeEnabled = 1`).
   - **Laptop Guard:** Intelligent WMI battery detection (`Get-CimInstance Win32_Battery`) preventing aggressive battery drain on DC power while maximizing performance on AC.
-  - **Expanded Testing & Audit:** Test harness expanded to 63 automated assertions; System Health Audit expanded to 31 check points.
+  - **Expanded Testing & Audit:** Test harness expanded to 66 automated assertions; System Health Audit expanded to 31 check points with strict submenu and preset FixMenu validation.
 - **Core Architecture:**
   - Complete 8-module architecture separating safety, latency, network, GPU, debloat, UI, diagnostics, and app installations.
   - Interactive Text User Interface (TUI) with real-time status indicators (`[✓] Optimal` / `[ ] Action Required`).
