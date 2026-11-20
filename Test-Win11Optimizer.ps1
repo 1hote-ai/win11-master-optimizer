@@ -260,6 +260,209 @@ Assert-Test "Safety: Comprehensive Registry Types preservation (DWord, QWord, St
     return ($matchDWord -and $matchQWord -and $matchString -and $matchExpand -and $matchMulti -and $matchBinary)
 }
 
+Assert-Test "Safety: Non-standard custom registry value exact restoration" {
+    $exactKey = "HKCU:\Software\Win11Opt_ExactVal_$(Get-Random)"
+    New-Item -Path $exactKey -Force | Out-Null
+    Set-ItemProperty -Path $exactKey -Name "CustomParam" -Value 4242 -Type DWord -Force
+    Set-ItemProperty -Path $exactKey -Name "CustomText" -Value "UserSpecificSetting" -Type String -Force
+
+    $targets = @(
+        @{ Path = $exactKey; Name = "CustomParam" },
+        @{ Path = $exactKey; Name = "CustomText" }
+    )
+
+    $snapFile = Save-RegistrySnapshot -Category "ExactValTest" -RegistryTargets $targets
+    if (-not (Test-Path $snapFile)) { return $false }
+
+    # Mutate to standard optimizer values
+    Set-ItemProperty -Path $exactKey -Name "CustomParam" -Value 0 -Type DWord -Force
+    Set-ItemProperty -Path $exactKey -Name "CustomText" -Value "OptimizerMutated" -Type String -Force
+
+    # Restore
+    $res = Restore-RegistrySnapshot -Category "ExactValTest" -BackupFilePath $snapFile
+    $p = Get-ItemProperty -Path $exactKey
+
+    Remove-Item -Path $exactKey -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $snapFile -Force -ErrorAction SilentlyContinue
+
+    return ($res.Success -and $p.CustomParam -eq 4242 -and $p.CustomText -eq "UserSpecificSetting")
+}
+
+Assert-Test "Safety: Missing registry property deletion on rollback" {
+    $missingKey = "HKCU:\Software\Win11Opt_MissingVal_$(Get-Random)"
+    New-Item -Path $missingKey -Force | Out-Null
+
+    # The property does NOT exist initially
+    $targets = @(
+        @{ Path = $missingKey; Name = "NewlyCreatedParam" }
+    )
+
+    $snapFile = Save-RegistrySnapshot -Category "MissingValTest" -RegistryTargets $targets
+    if (-not (Test-Path $snapFile)) { return $false }
+
+    # Create the property during optimization
+    Set-ItemProperty -Path $missingKey -Name "NewlyCreatedParam" -Value 1 -Type DWord -Force
+
+    # Restore
+    $res = Restore-RegistrySnapshot -Category "MissingValTest" -BackupFilePath $snapFile
+    $prop = (Get-ItemProperty -Path $missingKey -ErrorAction SilentlyContinue).NewlyCreatedParam
+
+    Remove-Item -Path $missingKey -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $snapFile -Force -ErrorAction SilentlyContinue
+
+    return ($res.Success -and $null -eq $prop)
+}
+
+Assert-Test "Safety: Snapshot Security Validator blocks traversal, non-registry roots and protected hives" {
+    # 1. Path traversal
+    $travEntry = [PSCustomObject]@{ Path = "HKLM:\SOFTWARE\Microsoft\..\..\Windows"; Name = "Test"; KeyExists = $true; ValueExists = $true; Type = "DWord"; Value = 1 }
+    $resTrav = Test-RegistrySnapshotEntrySecurity -Entry $travEntry
+
+    # 2. File system path injection
+    $fsEntry = [PSCustomObject]@{ Path = "C:\Windows\System32"; Name = "cmd.exe"; KeyExists = $true; ValueExists = $true; Type = "DWord"; Value = 1 }
+    $resFs = Test-RegistrySnapshotEntrySecurity -Entry $fsEntry
+
+    # 3. Protected security hive (SAM)
+    $samEntry = [PSCustomObject]@{ Path = "HKLM:\SAM\SAM\Domains"; Name = "F"; KeyExists = $true; ValueExists = $true; Type = "Binary"; Value = @(0) }
+    $resSam = Test-RegistrySnapshotEntrySecurity -Entry $samEntry
+
+    # 4. Dangerous/invalid type
+    $typeEntry = [PSCustomObject]@{ Path = "HKCU:\Software\Win11Optimizer"; Name = "BadType"; KeyExists = $true; ValueExists = $true; Type = "MaliciousType"; Value = 1 }
+    $resType = Test-RegistrySnapshotEntrySecurity -Entry $typeEntry
+
+    # 5. Legitimate entry
+    $legitEntry = [PSCustomObject]@{ Path = "HKCU:\Software\Win11Optimizer"; Name = "GoodVal"; KeyExists = $true; ValueExists = $true; Type = "DWord"; Value = 1 }
+    $resLegit = Test-RegistrySnapshotEntrySecurity -Entry $legitEntry
+
+    return (-not $resTrav.Valid -and -not $resFs.Valid -and -not $resSam.Valid -and -not $resType.Valid -and $resLegit.Valid)
+}
+
+Assert-Test "Safety: Snapshot Security rejection inside Restore-RegistrySnapshot" {
+    $backupDir = Join-Path $ScriptDir "Backups"
+    if (-not (Test-Path $backupDir)) {
+        New-Item -Path $backupDir -ItemType Directory -Force | Out-Null
+    }
+    $maliciousFile = Join-Path $backupDir "Backup_SecurityAttack_Mock.json"
+
+    $badPayload = [PSCustomObject]@{
+        Category  = "SecurityAttack"
+        Timestamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
+        Entries   = @(
+            [PSCustomObject]@{
+                Path        = "HKLM:\SAM\SAM"
+                Name        = "BadVal"
+                KeyExists   = $true
+                ValueExists = $true
+                Type        = "DWord"
+                Value       = 1337
+            }
+        )
+    }
+    $badPayload | ConvertTo-Json -Depth 5 | Set-Content -Path $maliciousFile -Encoding UTF8
+
+    $res = Restore-RegistrySnapshot -Category "SecurityAttack" -BackupFilePath $maliciousFile
+    Remove-Item -Path $maliciousFile -Force -ErrorAction SilentlyContinue
+
+    return ($res.Success -eq $false -and $res.FailedCount -eq 1 -and $res.FailedItems[0].Error -match "SECURITY BLOCK")
+}
+
+Assert-Test "Safety: Rollback Idempotency (consecutive rollbacks maintain consistent state)" {
+    $idempKey = "HKCU:\Software\Win11Opt_Idemp_$(Get-Random)"
+    New-Item -Path $idempKey -Force | Out-Null
+    Set-ItemProperty -Path $idempKey -Name "StableVal" -Value 555 -Type DWord -Force
+
+    $targets = @(@{ Path = $idempKey; Name = "StableVal" })
+    $snapFile = Save-RegistrySnapshot -Category "IdempTest" -RegistryTargets $targets
+
+    Set-ItemProperty -Path $idempKey -Name "StableVal" -Value 888 -Type DWord -Force
+
+    # First restoration
+    $res1 = Restore-RegistrySnapshot -Category "IdempTest" -BackupFilePath $snapFile
+    $val1 = (Get-ItemProperty -Path $idempKey).StableVal
+
+    # Second restoration (idempotent run)
+    $res2 = Restore-RegistrySnapshot -Category "IdempTest" -BackupFilePath $snapFile
+    $val2 = (Get-ItemProperty -Path $idempKey).StableVal
+
+    Remove-Item -Path $idempKey -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $snapFile -Force -ErrorAction SilentlyContinue
+
+    return ($res1.Success -and $res2.Success -and $val1 -eq 555 -and $val2 -eq 555)
+}
+
+Assert-Test "Exact State: Powercfg processor power settings query & state snapshot" {
+    $powerState = Get-ProcessorPowerSettingsState
+    if (-not $powerState -or -not $powerState.Success) { return $false }
+    if ([string]::IsNullOrWhiteSpace($powerState.ActiveSchemeGuid)) { return $false }
+
+    $snapFile = Save-StateSnapshot -Category "CpuPowerSettingsUnitTest" -StateData $powerState
+    if (-not (Test-Path $snapFile)) { return $false }
+
+    $retrieved = Get-LatestStateSnapshot -Category "CpuPowerSettingsUnitTest"
+    Remove-Item -Path $snapFile -Force -ErrorAction SilentlyContinue
+
+    return ($retrieved -ne $null -and $retrieved.StateData.ActiveSchemeGuid -eq $powerState.ActiveSchemeGuid)
+}
+
+Assert-Test "Exact State: Netsh TCP global state parser and snapshot" {
+    $netshState = Get-NetshTcpGlobalState
+    if (-not $netshState -or -not $netshState.Success) { return $false }
+    if ($null -eq $netshState.rss -or $null -eq $netshState.autotuninglevel) { return $false }
+
+    $snapFile = Save-StateSnapshot -Category "NetshTcpUnitTest" -StateData $netshState
+    if (-not (Test-Path $snapFile)) { return $false }
+
+    $retrieved = Get-LatestStateSnapshot -Category "NetshTcpUnitTest"
+    Remove-Item -Path $snapFile -Force -ErrorAction SilentlyContinue
+
+    return ($retrieved -ne $null -and $retrieved.StateData.rss -eq $netshState.rss)
+}
+
+Assert-Test "Exact State: Telemetry Services & Scheduled Tasks preservation schema" {
+    $mockServices = @(
+        [PSCustomObject]@{ Name = "DiagTrack"; StartupType = "Disabled"; Status = "Stopped" }
+    )
+    $mockTasks = @(
+        [PSCustomObject]@{ Path = "\Microsoft\Windows\Customer Experience Improvement Program"; Name = "Consolidator"; State = "Disabled" }
+    )
+    $stateData = [PSCustomObject]@{
+        Services = $mockServices
+        Tasks    = $mockTasks
+    }
+
+    $snapFile = Save-StateSnapshot -Category "DebloatTelemetryUnitTest" -StateData $stateData
+    if (-not (Test-Path $snapFile)) { return $false }
+
+    $retrieved = Get-LatestStateSnapshot -Category "DebloatTelemetryUnitTest"
+    Remove-Item -Path $snapFile -Force -ErrorAction SilentlyContinue
+
+    return ($retrieved -ne $null -and `
+            @($retrieved.StateData.Services)[0].StartupType -eq "Disabled" -and `
+            @($retrieved.StateData.Tasks)[0].State -eq "Disabled")
+}
+
+Assert-Test "Exact State: USB and Network Adapter power properties snapshot schema" {
+    $usbState = [PSCustomObject]@{
+        ActiveSchemeGuid = "381b4222-f694-41f0-9685-ff5bb260df2e"
+        AC               = 0
+        DC               = 1
+        WmiInstances     = @(
+            [PSCustomObject]@{ InstanceName = "USB\ROOT_HUB30\Mock"; Enable = $false }
+        )
+    }
+
+    $snapFile = Save-StateSnapshot -Category "UsbPowerUnitTest" -StateData $usbState
+    if (-not (Test-Path $snapFile)) { return $false }
+
+    $retrieved = Get-LatestStateSnapshot -Category "UsbPowerUnitTest"
+    Remove-Item -Path $snapFile -Force -ErrorAction SilentlyContinue
+
+    return ($retrieved -ne $null -and `
+            $retrieved.StateData.AC -eq 0 -and `
+            $retrieved.StateData.DC -eq 1 -and `
+            @($retrieved.StateData.WmiInstances)[0].InstanceName -eq "USB\ROOT_HUB30\Mock")
+}
+
 Assert-Test "Safety: SystemRestorePointCreationFrequency snapshot and restoration routine" {
     $cmdNew = Get-Command New-OptimizerRestorePoint -ErrorAction SilentlyContinue
     $cmdRest = Get-Command Restore-SystemRestorePointCreationFrequency -ErrorAction SilentlyContinue
@@ -499,9 +702,9 @@ Write-Host "  TEST RESULTS: Passed: $passedTests | Failed: $failedTests" -Foregr
 Write-Host "========================================================`n" -ForegroundColor Cyan
 
 # Clean any test backup files
-Get-ChildItem -Path (Join-Path $ScriptDir "Backups") -Filter "Backup_UnitTest_*.json" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
-Get-ChildItem -Path (Join-Path $ScriptDir "Backups") -Filter "Backup_SubkeyTest_*.json" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
-Get-ChildItem -Path (Join-Path $ScriptDir "Backups") -Filter "Backup_*_2026*.json" -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*UnitTest*" -or $_.Name -like "*SubkeyTest*" } | Remove-Item -Force -ErrorAction SilentlyContinue
+Get-ChildItem -Path (Join-Path $ScriptDir "Backups") -Filter "Backup_*.json" -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -like "*Test*" -or $_.Name -like "*Security*" -or $_.Name -like "*Mock*" } |
+    Remove-Item -Force -ErrorAction SilentlyContinue
 
 if ($failedTests -gt 0) {
     exit 1

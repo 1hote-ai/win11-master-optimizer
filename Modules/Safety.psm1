@@ -27,10 +27,10 @@ function Invoke-BackupRotation {
     Initialize-SafetyModule
 
     try {
-        $files = Get-ChildItem -Path $Script:BackupDir -Filter "Backup_*.json" -ErrorAction SilentlyContinue |
-            Sort-Object LastWriteTime -Descending
+        $files = @(Get-ChildItem -Path $Script:BackupDir -Filter "Backup_*.json" -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending)
 
-        if (-not $files -or $files.Count -le $MaxBackups) {
+        if ($files.Count -le $MaxBackups) {
             return
         }
 
@@ -197,6 +197,194 @@ function Save-RegistrySnapshot {
     return $backupFilePath
 }
 
+function Test-RegistrySnapshotEntrySecurity {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        $Entry
+    )
+
+    if ($null -eq $Entry -or -not ($Entry -is [PSCustomObject] -or $Entry -is [hashtable])) {
+        return [PSCustomObject]@{ Valid = $false; Error = "Запись снимка не является объектом" }
+    }
+
+    $path = $null
+    $name = $null
+    $type = $null
+    $keyExists = $null
+    $valExists = $null
+
+    if ($Entry -is [hashtable]) {
+        if ($Entry.ContainsKey('Path')) { $path = $Entry['Path'] }
+        if ($Entry.ContainsKey('Name')) { $name = $Entry['Name'] }
+        if ($Entry.ContainsKey('Type')) { $type = $Entry['Type'] }
+        if ($Entry.ContainsKey('KeyExists')) { $keyExists = $Entry['KeyExists'] }
+        if ($Entry.ContainsKey('ValueExists')) { $valExists = $Entry['ValueExists'] }
+    } else {
+        if ($Entry.PSObject.Properties['Path']) { $path = $Entry.Path }
+        if ($Entry.PSObject.Properties['Name']) { $name = $Entry.Name }
+        if ($Entry.PSObject.Properties['Type']) { $type = $Entry.Type }
+        if ($Entry.PSObject.Properties['KeyExists']) { $keyExists = $Entry.KeyExists }
+        if ($Entry.PSObject.Properties['ValueExists']) { $valExists = $Entry.ValueExists }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($path)) {
+        return [PSCustomObject]@{ Valid = $false; Error = "Отсутствует или пуст обязательный путь реестра (Path)" }
+    }
+
+    if ($null -eq $name) {
+        return [PSCustomObject]@{ Valid = $false; Error = "Отсутствует обязательное поле имени параметра (Name)" }
+    }
+
+    if ($null -ne $keyExists -and -not ($keyExists -is [bool])) {
+        return [PSCustomObject]@{ Valid = $false; Error = "Поле KeyExists не является булевым значением" }
+    }
+
+    if ($null -ne $valExists -and -not ($valExists -is [bool])) {
+        return [PSCustomObject]@{ Valid = $false; Error = "Поле ValueExists не является булевым значением" }
+    }
+
+    $pathStr = [string]$path
+
+    # Блокировка path traversal, служебных спецсимволов и инъекций
+    if ($pathStr -match '(\.\.|\*|\?|;|\0|\r|\n)') {
+        return [PSCustomObject]@{ Valid = $false; Error = "Путь содержит недопустимые спецсимволы или попытку обхода каталогов (traversal): $pathStr" }
+    }
+
+    # Валидация корня: разрешены только разделы реестра HKLM:\ и HKCU:\
+    $isRegistryRoot = ($pathStr -like "HKLM:\*" -or $pathStr -like "HKCU:\*")
+    if (-not $isRegistryRoot) {
+        return [PSCustomObject]@{ Valid = $false; Error = "Запрещенный корневой раздел. Разрешены только ветки реестра HKLM:\ и HKCU:\. Задано: $pathStr" }
+    }
+
+    # Белый список доверенных системных префиксов реестра Windows Optimizer
+    $allowedPrefixes = @(
+        "HKLM:\SOFTWARE\Policies\Microsoft\",
+        "HKLM:\SOFTWARE\Microsoft\Windows\",
+        "HKLM:\SOFTWARE\Microsoft\Windows NT\",
+        "HKLM:\SOFTWARE\Microsoft\PolicyManager\",
+        "HKLM:\SYSTEM\CurrentControlSet\Control\",
+        "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\",
+        "HKCU:\Software\Microsoft\",
+        "HKCU:\Software\Classes\",
+        "HKCU:\Software\Policies\",
+        "HKCU:\System\",
+        "HKCU:\Control Panel\",
+        "HKCU:\Software\Win11Opt"  # Песочницы для юнит-тестов
+    )
+
+    $isAllowed = $false
+    foreach ($prefix in $allowedPrefixes) {
+        if ($pathStr.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $isAllowed = $true
+            break
+        }
+    }
+
+    if (-not $isAllowed) {
+        return [PSCustomObject]@{ Valid = $false; Error = "Путь реестра $pathStr находится за пределами разрешенных веток оптимизатора" }
+    }
+
+    # Черный список критических системных узлов безопасности
+    $blockedSubstrings = @(
+        "HKLM:\SAM",
+        "HKLM:\SECURITY",
+        "HKLM:\BCD00000000",
+        "\Control\Lsa",
+        "\Services\WinDefend",
+        "\Services\MpsSvc"
+    )
+
+    foreach ($blocked in $blockedSubstrings) {
+        if ($pathStr -like "*$blocked*") {
+            return [PSCustomObject]@{ Valid = $false; Error = "Попытка доступа к защищенному системному узлу: $blocked" }
+        }
+    }
+
+    # Проверка допустимого типа реестра
+    if ($valExists -eq $true -or ($null -ne $type -and [string]$type -ne "")) {
+        $validTypes = @("DWord", "QWord", "String", "ExpandString", "MultiString", "Binary")
+        if ([string]::IsNullOrWhiteSpace($type) -or ($type -notin $validTypes)) {
+            return [PSCustomObject]@{ Valid = $false; Error = "Недопустимый тип реестра: $type" }
+        }
+    }
+
+    return [PSCustomObject]@{ Valid = $true; Error = $null }
+}
+
+function Save-StateSnapshot {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Category,
+        [Parameter(Mandatory = $true)]
+        $StateData,
+        [switch]$DryRun = $false
+    )
+
+    if ($DryRun) { return $null }
+
+    Initialize-SafetyModule
+    Invoke-BackupRotation
+
+    $timestamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
+    $backupFileName = "Backup_${Category}_$timestamp.json"
+    $backupFilePath = Join-Path -Path $Script:BackupDir -ChildPath $backupFileName
+
+    $payload = [PSCustomObject]@{
+        Category  = $Category
+        Timestamp = $timestamp
+        Date      = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+        StateData = $StateData
+    }
+
+    try {
+        $json = $payload | ConvertTo-Json -Depth 10
+        [System.IO.File]::WriteAllText($backupFilePath, $json, [System.Text.Encoding]::UTF8)
+        Write-Verbose "Сохранен снимок состояния $Category в $backupFileName"
+        return $backupFilePath
+    } catch {
+        Write-Host "[Safety WARNING] Ошибка сохранения снимка состояния ${Category}: $($_.Exception.Message)" -ForegroundColor Yellow
+        return $null
+    }
+}
+
+function Get-LatestStateSnapshot {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Category
+    )
+
+    Initialize-SafetyModule
+
+    $files = @(Get-ChildItem -Path $Script:BackupDir -Filter "Backup_${Category}_*.json" -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending)
+
+    if ($files.Count -eq 0) {
+        return $null
+    }
+
+    $targetFile = $files[0].FullName
+    try {
+        $raw = [System.IO.File]::ReadAllText($targetFile, [System.Text.Encoding]::UTF8)
+        $payload = $raw | ConvertFrom-Json
+        if (-not $payload -or $null -eq $payload.StateData) {
+            Write-Verbose "Файл снимка $targetFile поврежден или не содержит StateData"
+            return $null
+        }
+        return [PSCustomObject]@{
+            TargetFile = $targetFile
+            Category   = $payload.Category
+            Timestamp  = $payload.Timestamp
+            StateData  = $payload.StateData
+        }
+    } catch {
+        Write-Verbose "Ошибка чтения снимка состояния ${targetFile}: $_"
+        return $null
+    }
+}
+
 function Restore-RegistrySnapshot {
     [CmdletBinding()]
     param(
@@ -226,16 +414,16 @@ function Restore-RegistrySnapshot {
         $targetFile = $BackupFilePath
     } elseif (-not [string]::IsNullOrWhiteSpace($Category)) {
         # Ищем самый свежий бэкап категории
-        $files = Get-ChildItem -Path $Script:BackupDir -Filter "Backup_${Category}_*.json" -ErrorAction SilentlyContinue |
-            Sort-Object LastWriteTime -Descending
-        if ($files -and $files.Count -gt 0) {
+        $files = @(Get-ChildItem -Path $Script:BackupDir -Filter "Backup_${Category}_*.json" -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending)
+        if ($files.Count -gt 0) {
             $targetFile = $files[0].FullName
         }
     } else {
         # Ищем самый свежий бэкап вообще
-        $files = Get-ChildItem -Path $Script:BackupDir -Filter "Backup_*.json" -ErrorAction SilentlyContinue |
-            Sort-Object LastWriteTime -Descending
-        if ($files -and $files.Count -gt 0) {
+        $files = @(Get-ChildItem -Path $Script:BackupDir -Filter "Backup_*.json" -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending)
+        if ($files.Count -gt 0) {
             $targetFile = $files[0].FullName
         }
     }
@@ -284,6 +472,21 @@ function Restore-RegistrySnapshot {
     $errorList    = [System.Collections.Generic.List[string]]::new()
 
     foreach ($entry in $payload.Entries) {
+        # Валидация безопасности и структуры записи снимка
+        $secCheck = Test-RegistrySnapshotEntrySecurity -Entry $entry
+        if (-not $secCheck.Valid) {
+            $errMsg = "[SECURITY BLOCK] Снимок отклонен системой безопасности: $($secCheck.Error)"
+            $failedList.Add([PSCustomObject]@{
+                Path   = if ($entry -and $entry.Path) { [string]$entry.Path } else { "UNKNOWN" }
+                Name   = if ($entry -and $null -ne $entry.Name) { [string]$entry.Name } else { "UNKNOWN" }
+                Error  = $errMsg
+                Action = "SecurityValidation"
+            })
+            $errorList.Add($errMsg)
+            Write-Host "  $errMsg" -ForegroundColor Red
+            continue
+        }
+
         $path = $entry.Path
         $name = $entry.Name
 
@@ -398,11 +601,15 @@ function Get-BackupHistory {
     foreach ($file in $files) {
         try {
             $raw = [System.IO.File]::ReadAllText($file.FullName, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+            $entryCount = 0
+            if ($raw.PSObject.Properties['Entries'] -and $null -ne $raw.Entries) {
+                $entryCount = @($raw.Entries).Count
+            }
             $history += [PSCustomObject]@{
                 FileName  = $file.Name
                 Category  = $raw.Category
                 Date      = $raw.Date
-                Count     = $raw.Entries.Count
+                Count     = $entryCount
                 FullPath  = $file.FullName
             }
         } catch {
@@ -412,4 +619,6 @@ function Get-BackupHistory {
     return ,@($history)
 }
 
-Export-ModuleMember -Function New-OptimizerRestorePoint, Restore-SystemRestorePointCreationFrequency, Save-RegistrySnapshot, Restore-RegistrySnapshot, Get-BackupHistory, Invoke-BackupRotation
+Export-ModuleMember -Function New-OptimizerRestorePoint, Restore-SystemRestorePointCreationFrequency, `
+                             Save-RegistrySnapshot, Restore-RegistrySnapshot, Get-BackupHistory, Invoke-BackupRotation, `
+                             Test-RegistrySnapshotEntrySecurity, Save-StateSnapshot, Get-LatestStateSnapshot

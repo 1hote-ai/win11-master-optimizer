@@ -34,6 +34,31 @@ function Get-ActiveNetworkInterfaceGuids {
     return $guids
 }
 
+function Get-NetshTcpGlobalState {
+    $tcpConfig = [ordered]@{
+        Success         = $false
+        rss             = $null
+        autotuninglevel = $null
+        ecncapability   = $null
+        timestamps      = $null
+    }
+    $raw = netsh int tcp show global 2>&1
+    foreach ($line in $raw) {
+        if ($line -match '^\s*([^:]+?)\s*:\s*(\S+)\s*$') {
+            $k = $Matches[1].Trim()
+            $v = $Matches[2].Trim()
+            if ($k -like "*Receive-Side Scaling*" -or $k -like "*стороне приема*") { $tcpConfig["rss"] = $v }
+            elseif ($k -like "*Auto-Tuning Level*" -or $k -like "*автонастройки*") { $tcpConfig["autotuninglevel"] = $v }
+            elseif ($k -like "*ECN Capability*" -or $k -like "*ECN*") { $tcpConfig["ecncapability"] = $v }
+            elseif ($k -like "*Timestamps*" -or $k -like "*отметки времени*") { $tcpConfig["timestamps"] = $v }
+        }
+    }
+    if ($tcpConfig["rss"] -or $tcpConfig["autotuninglevel"]) {
+        $tcpConfig["Success"] = $true
+    }
+    return [PSCustomObject]$tcpConfig
+}
+
 function Set-GamingNetworkStack {
     [CmdletBinding()]
     param(
@@ -81,6 +106,16 @@ function Set-GamingNetworkStack {
 
     Write-Host "  [OK] Алгоритм Нейгла отключен для $tunedInterfaces интерфейсов (пакеты отправляются мгновенно)" -ForegroundColor Green
 
+    # Снимок исходной глобальной конфигурации TCP через netsh
+    try {
+        $origTcpState = Get-NetshTcpGlobalState
+        if ($origTcpState -and $origTcpState.Count -gt 0) {
+            Save-StateSnapshot -Category "NetshTcp" -StateData $origTcpState -DryRun:$DryRun | Out-Null
+        }
+    } catch {
+        Write-Verbose "Предупреждение при сохранении снимка netsh: $_"
+    }
+
     # Настройка глобальных параметров TCP через netsh
     try {
         # Receive Side Scaling (RSS) распределяет обработку сетевых прерываний по нескольким ядрам
@@ -115,6 +150,32 @@ function Set-GamingNetworkStack {
             "EEELinkAdvertisement", "*EEE", "*EnergyEfficientEthernet", "*GreenEthernet",
             "AutoPowerSaveModeEnabled", "ReduceSpeedOnPowerDown", "ULPMode", "SelectiveSuspend", "SipsEnabled"
         )
+
+        # Снимок точных исходных параметров адаптеров перед модификацией
+        $savedAdapterProps = @()
+        foreach ($adapter in $adapters) {
+            $props = Get-NetAdapterAdvancedProperty -Name $adapter.Name -ErrorAction SilentlyContinue
+            foreach ($p in $props) {
+                $isTarget = ($p.RegistryKeyword -in $targetKeywords) -or 
+                            ($p.DisplayName -like "*Energy Efficient*") -or 
+                            ($p.DisplayName -like "*Зеленый Ethernet*") -or 
+                            ($p.DisplayName -like "*Green Ethernet*") -or
+                            ($p.DisplayName -like "*Ultra Low Power*")
+                if ($isTarget) {
+                    $savedAdapterProps += [PSCustomObject]@{
+                        AdapterName      = $adapter.Name
+                        DisplayName      = $p.DisplayName
+                        RegistryKeyword  = $p.RegistryKeyword
+                        RegistryValue    = $p.RegistryValue
+                        DisplayValue     = $p.DisplayValue
+                        RegistryDataType = $p.RegistryDataType
+                    }
+                }
+            }
+        }
+        if ($savedAdapterProps.Count -gt 0) {
+            Save-StateSnapshot -Category "AdapterProperties" -StateData $savedAdapterProps -DryRun:$DryRun | Out-Null
+        }
 
         foreach ($adapter in $adapters) {
             $props = Get-NetAdapterAdvancedProperty -Name $adapter.Name -ErrorAction SilentlyContinue
@@ -177,11 +238,50 @@ function Restore-GamingNetworkStack {
         }
     }
 
-    # Сброс параметров TCP
-    netsh int tcp set global rss=default 2>&1 | Out-Null
-    netsh int tcp set global autotuninglevel=normal 2>&1 | Out-Null
-    netsh int tcp set global timestamps=default 2>&1 | Out-Null
-    netsh int tcp set global ecncapability=default 2>&1 | Out-Null
+    # 2. Точный откат глобальных параметров TCP (netsh)
+    $netshSnap = Get-LatestStateSnapshot -Category "NetshTcp"
+    if ($netshSnap -and $netshSnap.StateData) {
+        $netshSuccess = $true
+        foreach ($param in @("rss", "autotuninglevel", "timestamps", "ecncapability")) {
+            if ($null -ne $netshSnap.StateData.$param) {
+                $targetVal = $netshSnap.StateData.$param
+                netsh int tcp set global "${param}=$targetVal" 2>&1 | Out-Null
+            }
+        }
+        $currentTcp = Get-NetshTcpGlobalState
+        foreach ($param in @("rss", "autotuninglevel", "timestamps", "ecncapability")) {
+            if ($null -ne $netshSnap.StateData.$param -and $currentTcp.$param -ne $netshSnap.StateData.$param) {
+                $netshSuccess = $false
+                Write-Host "  [WARNING] Не удалось вернуть параметр netsh $param к значению $($netshSnap.StateData.$param) (текущее: $($currentTcp.$param))" -ForegroundColor Yellow
+            }
+        }
+        if ($netshSuccess) {
+            Write-Host "  [OK] Все глобальные параметры TCP (netsh) точно возвращены к исходным значениям." -ForegroundColor Green
+        }
+    } else {
+        # Сброс параметров TCP по умолчанию только если снимок не найден
+        netsh int tcp set global rss=default 2>&1 | Out-Null
+        netsh int tcp set global autotuninglevel=normal 2>&1 | Out-Null
+        netsh int tcp set global timestamps=default 2>&1 | Out-Null
+        netsh int tcp set global ecncapability=default 2>&1 | Out-Null
+    }
+
+    # 3. Точный откат свойств энергосбережения сетевых адаптеров (EEE, ULP, Green Ethernet)
+    $adapterSnap = Get-LatestStateSnapshot -Category "AdapterProperties"
+    if ($adapterSnap -and $adapterSnap.StateData) {
+        foreach ($item in $adapterSnap.StateData) {
+            try {
+                if ($null -ne $item.RegistryValue) {
+                    Set-NetAdapterAdvancedProperty -Name $item.AdapterName -RegistryKeyword $item.RegistryKeyword -RegistryValue $item.RegistryValue -ErrorAction Stop
+                } elseif ($item.DisplayValue) {
+                    Set-NetAdapterAdvancedProperty -Name $item.AdapterName -DisplayName $item.DisplayName -DisplayValue $item.DisplayValue -ErrorAction Stop
+                }
+                Write-Host "  [OK] Исходное значение $($item.DisplayName) [$($item.RegistryKeyword)] на адаптере $($item.AdapterName) восстановлено." -ForegroundColor Green
+            } catch {
+                Write-Host "  [WARNING] Не удалось восстановить $($item.DisplayName) на $($item.AdapterName): $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+        }
+    }
 
     $sysProfile = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
     Set-ItemProperty -Path $sysProfile -Name "NetworkThrottlingIndex" -Value 10 -Type DWord -Force -ErrorAction SilentlyContinue
@@ -189,7 +289,7 @@ function Restore-GamingNetworkStack {
     # Откат DNS, если был сохранен снимок
     Restore-GamingDns | Out-Null
 
-    Write-Host "[Network Optimizer] Сетевой стек восстановлен до исходных параметров Windows." -ForegroundColor Green
+    Write-Host "[Network Optimizer] Сетевой стек возвращен к исходной конфигурации." -ForegroundColor Green
 }
 
 function Get-NetworkPowerSavingStatus {
@@ -667,6 +767,6 @@ function Get-GamingDnsStatus {
 }
 
 Export-ModuleMember -Function Get-ActiveNetworkInterfaceGuids, Set-GamingNetworkStack, Restore-GamingNetworkStack, `
-                             Get-NetworkPowerSavingStatus, Get-PrimaryActiveNetworkInterface, `
+                             Get-NetshTcpGlobalState, Get-NetworkPowerSavingStatus, Get-PrimaryActiveNetworkInterface, `
                              Test-GamingDnsBenchmark, Set-GamingDns, Reset-GamingDns, Restore-GamingDns, Show-DnsBenchmarkAndSwitcherMenu, `
                              Get-NagleStatus, Get-NetworkGamingStackStatus, Get-GamingDnsStatus

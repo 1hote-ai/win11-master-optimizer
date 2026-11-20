@@ -155,6 +155,55 @@ function Restore-GamingMsiMode {
     }
 }
 
+function Restore-ActivePowerScheme {
+    [CmdletBinding()]
+    param()
+
+    $snap = Get-LatestStateSnapshot -Category "ActivePowerScheme"
+    if ($snap -and $snap.StateData -and $snap.StateData.ActiveSchemeGuid) {
+        $origGuid = $snap.StateData.ActiveSchemeGuid
+        powercfg -setactive $origGuid 2>&1 | Out-Null
+        Write-Host "  [OK] Первоначальная схема питания ($origGuid) восстановлена." -ForegroundColor Green
+        return $true
+    }
+    return $false
+}
+
+function Get-ProcessorPowerSettingsState {
+    $activeScheme = powercfg /getactivescheme 2>&1
+    $activeGuid = $null
+    if ($activeScheme -match '([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})') {
+        $activeGuid = $Matches[1]
+    }
+
+    $lines = powercfg /q SCHEME_CURRENT SUB_PROCESSOR 2>&1
+    $curGuid = $null
+    $settings = @{}
+
+    foreach ($line in $lines) {
+        if ($line -match '([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})') {
+            $curGuid = $Matches[1].ToLower()
+            if (-not $settings.ContainsKey($curGuid)) {
+                $settings[$curGuid] = [PSCustomObject]@{ SettingGuid = $curGuid; AC = $null; DC = $null }
+            }
+        }
+        if ($line -match ':\s*0x([0-9a-fA-F]+)') {
+            $val = [Convert]::ToInt32($Matches[1], 16)
+            if ($line -match '(сети|AC)') {
+                if ($curGuid) { $settings[$curGuid].AC = $val }
+            } elseif ($line -match '(батарей|DC)') {
+                if ($curGuid) { $settings[$curGuid].DC = $val }
+            }
+        }
+    }
+
+    return [PSCustomObject]@{
+        Success          = [bool](-not [string]::IsNullOrWhiteSpace($activeGuid))
+        ActiveSchemeGuid = $activeGuid
+        Settings         = @($settings.Values)
+    }
+}
+
 function Enable-UltimatePerformancePlan {
     [CmdletBinding()]
     param([switch]$DryRun = $false)
@@ -164,6 +213,12 @@ function Enable-UltimatePerformancePlan {
     if ($DryRun) {
         Write-Host "  [DRY-RUN] Будет разблокирована и активирована схема питания Ultimate Performance." -ForegroundColor DarkGray
         return $true
+    }
+
+    # Сохраняем исходную активную схему питания перед переключением
+    $activeScheme = powercfg /getactivescheme 2>&1
+    if ($activeScheme -match '([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})') {
+        Save-StateSnapshot -Category "ActivePowerScheme" -StateData @{ ActiveSchemeGuid = $Matches[1] } -DryRun:$DryRun | Out-Null
     }
 
     try {
@@ -236,7 +291,11 @@ function Set-CpuGamingScheduling {
         Set-ItemProperty -Path $priKey -Name "Win32PrioritySeparation" -Value 38 -Type DWord -Force
         Write-Host "  [OK] Win32PrioritySeparation установлен в 38 (0x26 - Gaming Foreground Boost)" -ForegroundColor Green
 
-        # 3. Отключение парковки ядер CPU (Core Parking) и задержек перехода P-State в активной схеме питания
+        # 3. Снимок точных текущих параметров питания процессора (AC/DC) перед изменением
+        $procPowerState = Get-ProcessorPowerSettingsState
+        Save-StateSnapshot -Category "CpuPowerSettings" -StateData $procPowerState -DryRun:$DryRun | Out-Null
+
+        # Отключение парковки ядер CPU (Core Parking) и задержек перехода P-State в активной схеме питания
         powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES 100 2>&1 | Out-Null
         powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES1 100 2>&1 | Out-Null
         powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFEPP 0 2>&1 | Out-Null
@@ -263,12 +322,31 @@ function Restore-CpuGamingScheduling {
         Remove-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling" -Name "PowerThrottlingOff" -ErrorAction SilentlyContinue
     }
     
-    # Возвращаем дефолтные параметры схемы электропитания
-    powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES 10 2>&1 | Out-Null
-    powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFEPP 50 2>&1 | Out-Null
-    powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMIN 5 2>&1 | Out-Null
-    powercfg -setactive SCHEME_CURRENT 2>&1 | Out-Null
-    Write-Host "[CPU Optimization] Параметры CPU возвращены к значениям Windows по умолчанию." -ForegroundColor Green
+    # Точное восстановление исходных параметров электропитания процессора из снимка
+    $snap = Get-LatestStateSnapshot -Category "CpuPowerSettings"
+    if ($snap -and $snap.StateData -and $snap.StateData.Settings) {
+        $targetScheme = if ($snap.StateData.ActiveSchemeGuid) { $snap.StateData.ActiveSchemeGuid } else { "SCHEME_CURRENT" }
+        foreach ($s in $snap.StateData.Settings) {
+            if ($null -ne $s.AC) {
+                powercfg -setacvalueindex $targetScheme SUB_PROCESSOR $s.SettingGuid $s.AC 2>&1 | Out-Null
+            }
+            if ($null -ne $s.DC) {
+                powercfg -setdcvalueindex $targetScheme SUB_PROCESSOR $s.SettingGuid $s.DC 2>&1 | Out-Null
+            }
+        }
+        powercfg -setactive $targetScheme 2>&1 | Out-Null
+        Write-Host "  [OK] Первоначальные параметры питания процессора (AC/DC) для схемы $targetScheme точно восстановлены." -ForegroundColor Green
+    } else {
+        # Fallback на дефолтные параметры схемы электропитания только при отсутствии снимка
+        powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES 10 2>&1 | Out-Null
+        powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFEPP 50 2>&1 | Out-Null
+        powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMIN 5 2>&1 | Out-Null
+        powercfg -setactive SCHEME_CURRENT 2>&1 | Out-Null
+    }
+
+    # Возврат исходной схемы электропитания, если активировался Ultimate Performance
+    Restore-ActivePowerScheme | Out-Null
+    Write-Host "[CPU Optimization] Параметры CPU возвращены к исходным значениям." -ForegroundColor Green
 }
 
 function Set-SystemResponsivenessGaming {
@@ -590,8 +668,8 @@ function Get-SystemResponsivenessStatus {
 }
 
 Export-ModuleMember -Function Get-PciMsiDevices, Set-GamingMsiMode, Restore-GamingMsiMode, `
-                             Set-CpuGamingScheduling, Restore-CpuGamingScheduling, `
-                             Enable-UltimatePerformancePlan, `
+                             Set-CpuGamingScheduling, Restore-CpuGamingScheduling, Get-ProcessorPowerSettingsState, `
+                             Enable-UltimatePerformancePlan, Restore-ActivePowerScheme, `
                              Set-SystemResponsivenessGaming, Restore-SystemResponsiveness, `
                              Get-VbsStatus, Set-VbsState, Clear-StandbyRamAndWorkingSet, `
                              Get-MsiModeStatus, Get-CpuGamingSchedulingStatus, `

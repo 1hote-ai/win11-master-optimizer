@@ -73,9 +73,115 @@ Every function in the suite is assigned to one of four transparent safety tiers:
   - **Zero Side-Effects for System Restore Frequency:** When creating a restore point, Windows imposes a 24-hour throttle via `SystemRestorePointCreationFrequency`. The optimizer captures the pre-existing state of this key before setting it to 0. During rollback, `Restore-SystemRestorePointCreationFrequency` returns it to its original value or removes it if it was not originally present.
   - **Automated Backup Rotation:** `Invoke-BackupRotation` prunes snapshots beyond the 50 most recent files, preventing unbounded disk accumulation.
 
+### 3.7. Exact Subsystem State Restoration Framework
+To eliminate discrepancies between declared reversibility and actual system state restoration, the optimizer replaces hardcoded defaults with exact state capture and restoration across 6 critical subsystems:
+1. **Power Schemes (Powercfg):** Captures initial active power scheme GUID, processor power management subgroup GUID, and exact AC and DC values for `CPMINCORES`, `PERFEPP`, `PROCTHROTTLEMIN`, and `PERFBOOSTMODE`. On rollback, restores the user's exact prior values and re-activates their original power plan (instead of assuming standard balanced defaults).
+2. **Global TCP Stack (Netsh):** Queries and snapshots active `rss`, `autotuninglevel`, `timestamps`, and `ecncapability` settings via `netsh int tcp show global`. On rollback, restores each parameter to its exact captured value, verifying restoration and reporting any parameter that fails to apply.
+3. **Windows Services:** Snapshots initial `StartupType` and `Status` (`Running` vs `Stopped`) for telemetry services (`DiagTrack`, `dmwappushservice`). On rollback, restores the original startup configuration without forcing stopped services into a running state.
+4. **Scheduled Tasks:** Queries and snapshots initial task state (`Ready`, `Running`, `Disabled`). On rollback, re-enables only tasks that were originally active; tasks that were already disabled prior to optimization remain untouched.
+5. **Network Adapters (EEE / ULP / Green Ethernet):** Captures individual physical network adapter advanced properties (`EEELinkAdvertisement`, `*EEE`, `*EnergyEfficientEthernet`, `ULPMode`, `*GreenEthernet`) along with their native driver values. Restores each property individually during rollback.
+6. **USB Power Management:** Captures active scheme AC/DC values for USB Selective Suspend and WMI `MSPower_DeviceEnable` hub states. On rollback, restores the exact captured state.
+
+### 3.8. Snapshot Security Validation Framework
+To prevent arbitrary registry writes, privilege escalation, or corrupted snapshot injection, `Restore-RegistrySnapshot` enforces strict validation via `Test-RegistrySnapshotEntrySecurity`:
+- **Path Traversal & Injection Blocking:** Rejects entries containing traversal sequences (`..`), wildcards (`*`, `?`), null bytes (`\0`), or line breaks.
+- **Root Whitelisting:** Restricts root hives strictly to `HKLM:\` and `HKCU:\`.
+- **System Prefix Whitelist:** Allows modifications only within recognized optimizer paths (`SOFTWARE\Policies\Microsoft\`, `SOFTWARE\Microsoft\Windows\`, `SYSTEM\CurrentControlSet\Control\`, `SYSTEM\CurrentControlSet\Services\Tcpip\`, etc.).
+- **Blacklisted Critical Hives:** Permanently denies access to protected security hives: `HKLM:\SAM`, `HKLM:\SECURITY`, `HKLM:\BCD00000000`, `\Control\Lsa`, `\Services\WinDefend`, `\Services\MpsSvc`.
+- **Registry Type Whitelist:** Rejects unknown or malicious registry types, permitting only `DWord`, `QWord`, `String`, `ExpandString`, `MultiString`, and `Binary`.
+- **Isolated Failure Handling:** Insecure entries trigger `[SECURITY BLOCK]`, are recorded in `FailedItems`, and mark overall `Success = $false` without halting execution.
+
 ---
 
-## 4. Ten Architecture Improvements for Maximum User Trust
+## 4. Comprehensive 73-Feature Classification Table
+
+Every capability in the Windows 11 Master Optimizer suite is classified below with transparent status tags:
+- **`VERIFIED`**: Automated test and empirical verification passed.
+- **`DRY-RUN ONLY`**: Safe execution verified in automated dry-run test suite without modifying system state.
+- **`READ-ONLY VERIFIED`**: State, telemetry, hardware, or diagnostic query verified without side-effects.
+- **`MANUAL TEST REQUIRED`**: Requires interactive user input, physical hardware, or system reboot to observe end-to-end effect.
+- **`EXPERIMENTAL`**: Advanced kernel or driver tweak requiring caution or specific vendor hardware.
+- **`IRREVERSIBLE`**: Cannot be restored solely via local registry rollback (e.g., UWP app removal requires Microsoft Store reinstall).
+
+| # | Subsystem | Feature / Function | Status Tag | Mechanism & Exact Restoration Path |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | **Safety** | Admin Privilege Check (`Test-IsAdmin`) | `READ-ONLY VERIFIED` | `WindowsPrincipal.IsInRole(Administrator)`. |
+| 2 | **Safety** | System Restore Point (`New-OptimizerRestorePoint`) | `VERIFIED` | `Checkpoint-Computer -RestorePointType MODIFY_SETTINGS`. |
+| 3 | **Safety** | Restore Point Frequency (`Restore-SystemRestorePointCreationFrequency`) | `VERIFIED` | Exact snapshot restoration or removal of `SystemRestorePointCreationFrequency`. |
+| 4 | **Safety** | Registry Snapshot (`Save-RegistrySnapshot`) | `VERIFIED` | Serializes values with exact types (`DWord`, `QWord`, `String`, `Binary`, etc.). |
+| 5 | **Safety** | Granular Registry Rollback (`Restore-RegistrySnapshot`) | `VERIFIED` | Atomic per-entry restoration with subkey pruning and write verification. |
+| 6 | **Safety** | Security Validator (`Test-RegistrySnapshotEntrySecurity`) | `VERIFIED` | Blocks traversal, non-registry roots, blacklisted hives (`SAM`, `SECURITY`, `BCD`, `LSA`). |
+| 7 | **Safety** | State Snapshot Engine (`Save-StateSnapshot`) | `VERIFIED` | Generic JSON snapshotting for powercfg, netsh, services, tasks, adapters. |
+| 8 | **Safety** | State Snapshot Retrieval (`Get-LatestStateSnapshot`) | `VERIFIED` | Retrieves latest timestamped JSON state snapshot for exact rollback. |
+| 9 | **Safety** | Backup History Inspection (`Get-BackupHistory`) | `READ-ONLY VERIFIED` | Enumerates and parses backup JSON catalog. |
+| 10 | **Safety** | Backup Rotation (`Invoke-BackupRotation`) | `VERIFIED` | Retains latest 50 backups, purges older than 30 days. |
+| 11 | **GamingLatency** | PCI Bus Introspection (`Get-PciMsiDevices`) | `READ-ONLY VERIFIED` | WMI query filtering `Display`, `Net`, and `Media` PCI devices. |
+| 12 | **GamingLatency** | MSI Mode Configuration (`Set-GamingMsiMode`) | `DRY-RUN ONLY` | Sets `MSISupported=1` and `DevicePriority=3 (High)` on GPU/NIC/Audio. |
+| 13 | **GamingLatency** | MSI Mode Rollback (`Restore-GamingMsiMode`) | `VERIFIED` | Restores original `MSISupported` and `DevicePriority` from snapshot. |
+| 14 | **GamingLatency** | Processor Power State Query (`Get-ProcessorPowerSettingsState`) | `READ-ONLY VERIFIED` | Queries active scheme GUID and AC/DC indices for CPMINCORES, PERFEPP. |
+| 15 | **GamingLatency** | CPU Scheduling & Core Parking (`Set-CpuGamingScheduling`) | `DRY-RUN ONLY` | Snapshots processor settings; sets `Win32PrioritySeparation=38`, `CPMINCORES=100`, `PERFEPP=0`. |
+| 16 | **GamingLatency** | CPU Scheduling Exact Rollback (`Restore-CpuGamingScheduling`) | `VERIFIED` | Restores original AC/DC powercfg values to active scheme and restores original scheme GUID. |
+| 17 | **GamingLatency** | Ultimate Performance Plan (`Enable-UltimatePerformancePlan`) | `DRY-RUN ONLY` | Snapshots active scheme GUID; duplicates/activates `e9a42b02-...` scheme. |
+| 18 | **GamingLatency** | Active Power Scheme Exact Rollback (`Restore-ActivePowerScheme`) | `VERIFIED` | Re-activates initial power scheme GUID (`powercfg -setactive <InitialGuid>`). |
+| 19 | **GamingLatency** | System Responsiveness Tuning (`Set-SystemResponsivenessGaming`) | `DRY-RUN ONLY` | Snapshots `SystemProfile`; sets `SystemResponsiveness=0`, `GPU Priority=8`, `Priority=6`. |
+| 20 | **GamingLatency** | System Responsiveness Rollback (`Restore-SystemResponsiveness`) | `VERIFIED` | Restores original values from `Backup_SystemResponsiveness` snapshot. |
+| 21 | **GamingLatency** | VBS / HVCI State Query (`Get-VbsStatus`) | `READ-ONLY VERIFIED` | Queries `EnableVirtualizationBasedSecurity` and `HypervisorEnforcedCodeIntegrity`. |
+| 22 | **GamingLatency** | VBS / HVCI Security Toggle (`Set-VbsState`) | `EXPERIMENTAL` | Opt-in toggle; modifies kernel hypervisor security; requires reboot. |
+| 23 | **GamingLatency** | Standby RAM & WorkingSet Purge (`Clear-StandbyRamAndWorkingSet`) | `VERIFIED` | Native P/Invoke `NtSetSystemInformation(80, ref 4/2)` with `SeProfileSingleProcessPrivilege`. |
+| 24 | **GamingLatency** | MSI Mode Status (`Get-MsiModeStatus`) | `READ-ONLY VERIFIED` | Reads active interrupt state across PCI controllers. |
+| 25 | **GamingLatency** | CPU Scheduling Status (`Get-CpuGamingSchedulingStatus`) | `READ-ONLY VERIFIED` | Reads `Win32PrioritySeparation` and compares against 0x26. |
+| 26 | **GamingLatency** | Ultimate Performance Status (`Get-UltimatePerformancePlanStatus`) | `READ-ONLY VERIFIED` | Reads active power scheme name and GUID. |
+| 27 | **GamingLatency** | System Responsiveness Status (`Get-SystemResponsivenessStatus`) | `READ-ONLY VERIFIED` | Reads `SystemResponsiveness` under `SystemProfile`. |
+| 28 | **NetworkGaming** | Active NIC GUID Enumeration (`Get-ActiveNetworkInterfaceGuids`) | `READ-ONLY VERIFIED` | Enumerates routing interfaces and Tcpip parameter keys. |
+| 29 | **NetworkGaming** | Global TCP State Query (`Get-NetshTcpGlobalState`) | `READ-ONLY VERIFIED` | Queries and parses RSS, autotuninglevel, timestamps, ecncapability. |
+| 30 | **NetworkGaming** | Gaming Network Stack Tuning (`Set-GamingNetworkStack`) | `DRY-RUN ONLY` | Snapshots registry, netsh TCP, and NIC properties; disables Nagle (`TcpAckFrequency=1`, `TCPNoDelay=1`). |
+| 31 | **NetworkGaming** | Network Stack Exact Rollback (`Restore-GamingNetworkStack`) | `VERIFIED` | Restores Nagle parameters, exact netsh parameters, exact NIC EEE/ULP properties. |
+| 32 | **NetworkGaming** | Network Power Saving Status (`Get-NetworkPowerSavingStatus`) | `READ-ONLY VERIFIED` | Inspects EEE, Green Ethernet, and ULP properties across adapters. |
+| 33 | **NetworkGaming** | Primary Active NIC Detection (`Get-PrimaryActiveNetworkInterface`) | `READ-ONLY VERIFIED` | Resolves active routing network adapter with valid default gateway. |
+| 34 | **NetworkGaming** | Anycast DNS Benchmark Engine (`Test-GamingDnsBenchmark`) | `VERIFIED` | Probes ICMP latency and HTTPS DoH response times for Cloudflare, Quad9, Google, AdGuard. |
+| 35 | **NetworkGaming** | Gaming DNS Configuration (`Set-GamingDns`) | `DRY-RUN ONLY` | Sets primary/secondary DNS servers and configures encrypted DoH templates. |
+| 36 | **NetworkGaming** | DNS Reset to DHCP (`Reset-GamingDns`) | `DRY-RUN ONLY` | Resets DNS server addresses to automatic DHCP assignment. |
+| 37 | **NetworkGaming** | Gaming DNS Snapshot Rollback (`Restore-GamingDns`) | `VERIFIED` | Restores original DNS configuration from snapshot. |
+| 38 | **NetworkGaming** | Interactive DNS Switcher Menu (`Show-DnsBenchmarkAndSwitcherMenu`) | `MANUAL TEST REQUIRED` | Interactive console UI for live DNS benchmarking and selection. |
+| 39 | **NetworkGaming** | Nagle Algorithm Status (`Get-NagleStatus`) | `READ-ONLY VERIFIED` | Reads `TcpAckFrequency` and `TCPNoDelay` across active interfaces. |
+| 40 | **NetworkGaming** | Network Stack Status (`Get-NetworkGamingStackStatus`) | `READ-ONLY VERIFIED` | Reads `NetworkThrottlingIndex` under `SystemProfile`. |
+| 41 | **NetworkGaming** | Gaming DNS Status (`Get-GamingDnsStatus`) | `READ-ONLY VERIFIED` | Reads active DNS servers and matches against fast providers. |
+| 42 | **GpuDisplay** | NVIDIA Adapter Detection (`Get-NvidiaDisplayAdapterKeys`) | `READ-ONLY VERIFIED` | Enumerates `Class\{4d36e968-...}` display adapters for `ven_10de`. |
+| 43 | **GpuDisplay** | DWM MPO Disable (`Disable-MpoOverlay`) | `DRY-RUN ONLY` | Snapshots and sets `OverlayTestMode=5` in `HKLM:\SOFTWARE\Microsoft\Windows\Dwm`. |
+| 44 | **GpuDisplay** | DWM MPO Rollback (`Restore-MpoOverlay`) | `VERIFIED` | Restores original `OverlayTestMode` or deletes key on rollback. |
+| 45 | **GpuDisplay** | Hardware-Accelerated GPU Scheduling (`Enable-Hags`) | `DRY-RUN ONLY` | Snapshots and sets `HwSchMode=2` in `GraphicsDrivers`. |
+| 46 | **GpuDisplay** | HAGS Rollback (`Restore-Hags`) | `VERIFIED` | Restores original `HwSchMode` value from snapshot. |
+| 47 | **GpuDisplay** | DirectX Windowed Optimization (`Enable-DirectXWindowedOptimizations`) | `DRY-RUN ONLY` | Snapshots and sets `DirectXUserGlobalSettings = 'AutoPlayMode=1;'`. |
+| 48 | **GpuDisplay** | DirectX Windowed Rollback (`Restore-DirectXWindowedOptimizations`) | `VERIFIED` | Restores original `DirectXUserGlobalSettings` from snapshot. |
+| 49 | **GpuDisplay** | GPU Driver Windows Update Protection (`Enable-WindowsUpdateDriverProtection`) | `DRY-RUN ONLY` | Snapshots and sets `ExcludeWUDriversInQualityUpdate=1` under Policies. |
+| 50 | **GpuDisplay** | GPU Driver Protection Rollback (`Restore-WindowsUpdateDriverProtection`) | `VERIFIED` | Restores original driver update policy from snapshot. |
+| 51 | **GpuDisplay** | NVIDIA HDCP DRM Killer (`Disable-NvidiaHdcp`) | `EXPERIMENTAL` | Snapshots and sets `RMHdcpKeyglobZero=1` on NVIDIA driver instances. |
+| 52 | **GpuDisplay** | NVIDIA HDCP DRM Rollback (`Restore-NvidiaHdcp`) | `VERIFIED` | Restores original `RMHdcpKeyglobZero` parameter from snapshot. |
+| 53 | **GpuDisplay** | GPU Shader Cache Purge (`Clear-ShaderCaches`) | `IRREVERSIBLE` | Purges DXCache, D3DSCache, NVIDIA GLCache; caches rebuild dynamically during gameplay. |
+| 54 | **GpuDisplay** | DWM MPO Status (`Get-MpoStatus`) | `READ-ONLY VERIFIED` | Reads `OverlayTestMode` under DWM. |
+| 55 | **GpuDisplay** | HAGS Status (`Get-HagsStatus`) | `READ-ONLY VERIFIED` | Reads `HwSchMode` under GraphicsDrivers. |
+| 56 | **GpuDisplay** | DirectX Windowed Status (`Get-DirectXWindowedStatus`) | `READ-ONLY VERIFIED` | Reads `AutoPlayMode` under DirectX UserGpuPreferences. |
+| 57 | **GpuDisplay** | Driver Update Protection Status (`Get-WindowsUpdateDriverProtectionStatus`) | `READ-ONLY VERIFIED` | Reads `ExcludeWUDriversInQualityUpdate` policy. |
+| 58 | **GpuDisplay** | NVIDIA HDCP Status (`Get-NvidiaHdcpStatus`) | `READ-ONLY VERIFIED` | Reads `RMHdcpKeyglobZero` on active NVIDIA GPUs. |
+| 59 | **Debloat** | Telemetry & Diagnostics Disable (`Disable-TelemetryAndDiagnostics`) | `DRY-RUN ONLY` | Snapshots exact service startup/status and task states; disables DiagTrack, dmwappushservice. |
+| 60 | **Debloat** | Windows 11 24H2 Recall Disable (`Disable-RecallAndAiFeatures`) | `DRY-RUN ONLY` | Sets `DisableAIDataAnalysis=1` policy and invokes DISM optional feature disable. |
+| 61 | **Debloat** | Copilot & Bing Search Disable (`Disable-CopilotAndBingSearch`) | `DRY-RUN ONLY` | Sets `TurnOffWindowsCopilot=1`, `DisableSearchBoxSuggestions=1`, `BingSearchEnabled=0`. |
+| 62 | **Debloat** | Widgets Board Disable (`Disable-WidgetsBoard`) | `DRY-RUN ONLY` | Sets `AllowNewsAndInterests=0` policy to purge taskbar MSN widgets. |
+| 63 | **Debloat** | Safe Bloatware Uninstaller (`Remove-WindowsBloatware`) | `IRREVERSIBLE` | Removes pre-installed sponsored UWP packages with strict protection whitelist. |
+| 64 | **Debloat** | Debloat Settings Exact Rollback (`Restore-DebloatSettings`) | `VERIFIED` | Restores exact registry policies, exact service StartupType/Status, and enables only previously active tasks. |
+| 65 | **Debloat** | Recall Status (`Get-RecallStatus`) | `READ-ONLY VERIFIED` | Reads `DisableAIDataAnalysis` policy and DISM Recall state. |
+| 66 | **Debloat** | Copilot Status (`Get-CopilotStatus`) | `READ-ONLY VERIFIED` | Reads `TurnOffWindowsCopilot` policy. |
+| 67 | **Debloat** | Bing Search Status (`Get-BingSearchStatus`) | `READ-ONLY VERIFIED` | Reads `DisableSearchBoxSuggestions` and `BingSearchEnabled`. |
+| 68 | **Debloat** | Widgets Status (`Get-WidgetsStatus`) | `READ-ONLY VERIFIED` | Reads `AllowNewsAndInterests` policy. |
+| 69 | **Debloat** | Telemetry Status (`Get-TelemetryStatus`) | `READ-ONLY VERIFIED` | Reads `AllowTelemetry` and checks `DiagTrack` service state. |
+| 70 | **Debloat** | Bloatware Status (`Get-BloatwareStatus`) | `READ-ONLY VERIFIED` | Scans installed AppX packages matching bloatware list. |
+| 71 | **SystemUI** | Classic Context Menu (`Set-ClassicContextMenu`) | `DRY-RUN ONLY` | Registers CLSID `{86ca1aa0-...}` under `HKCU:\Software\Classes\CLSID`. |
+| 72 | **SystemUI** | File Explorer Tweaks (`Set-FileExplorerTweaks`) | `DRY-RUN ONLY` | Sets `HideFileExt=0`, `UseCompactMode=1`, `ShowRecent=0`, disables Search Highlights. |
+| 73 | **SystemUI** | GameDVR Optimization (`Set-GameDvrOptimized`) | `DRY-RUN ONLY` | Disables background GameDVR capture while keeping Game Bar and Xbox Live functional. |
+
+---
+
+## 5. Ten Architecture Improvements for Maximum User Trust
 
 1. **Pre-Execution Dry-Run:** Every CLI mode and TUI option supports `-DryRun`, outputting every planned registry key, path, and command without touching system state.
 2. **Deterministic Logging:** Every run writes timestamped execution logs to `Reports/` for auditing and technical troubleshooting.

@@ -37,7 +37,7 @@ Unlike legacy "black box" tweakers and opaque batch scripts from the 2010s that 
 ```
 win11-master-optimizer/
 ├── Win11Optimizer.ps1             # Main Orchestrator (TUI Menu & CLI Engine)
-├── Test-Win11Optimizer.ps1        # Automated Test Suite (42 automated assertions)
+├── Test-Win11Optimizer.ps1        # Automated Test Suite (51 automated assertions)
 ├── Start.bat / Start-Optimizer.bat # Clean Elevation Launchers (UTF-8, UAC Auto-Elevation)
 ├── Modules/
 │   ├── Safety.psm1                # System Restore Points, JSON Snapshots & Rollback

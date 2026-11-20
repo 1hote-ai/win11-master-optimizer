@@ -15,6 +15,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - Full Command-Line Interface (CLI) support with `-Mode` parameters (`AutoGaming`, `HealthCheck`, `RamClean`, `DnsBenchmark`, `GpuOnly`, `LowLatency`, `SafeDebloat`, `Rollback`).
   - Universal `-DryRun` switch for previewing all registry and command alterations without writing to disk or registry.
 - **Safety & Rollback Engine (`Safety.psm1`):**
+  - Snapshot Security Validator (`Test-RegistrySnapshotEntrySecurity`) enforcing path traversal rejection (`..`), registry root whitelisting (`HKLM:\`, `HKCU:\`), allowed prefix validation, blacklisted hive protection (`HKLM:\SAM`, `HKLM:\SECURITY`, `HKLM:\BCD00000000`, `\Control\Lsa`, `\Services\WinDefend`), and registry type validation.
+  - Generic Subsystem State Snapshot Engine (`Save-StateSnapshot`, `Get-LatestStateSnapshot`) for non-registry subsystem state persistence.
+  - Exact Subsystem State Restoration across Powercfg (active scheme GUID, AC/DC indices for processor power settings), Netsh TCP (`rss`, `autotuninglevel`, `timestamps`, `ecncapability`), Services (exact `StartupType` and `Status` preservation without forced starts), Scheduled Tasks (re-enabling only previously active tasks), Network Adapters (exact EEE/ULP properties), and USB power (exact AC/DC indices and WMI hub states).
   - Granular `RollbackResult` structured object (`Success`, `RestoredCount`, `FailedCount`, `TotalCount`, `RestoredItems`, `FailedItems`, `Errors`, `TargetFile`, `Message`) replacing primitive booleans.
   - Strict per-parameter isolation: every registry parameter is restored independently; write verification confirms property existence; partial failures are explicitly logged and cause `Success = $false`.
   - Windows System Restore Point creation with pre-snapshot of `SystemRestorePointCreationFrequency` (eliminating permanent registry alteration; restored or removed via `Restore-SystemRestorePointCreationFrequency`).
@@ -60,7 +63,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - Silent Winget package installer with 25 curated tools across utilities, gaming latency, launchers, communication, and runtimes.
 - **Launchers & Testing:**
   - Modernized `Start.bat`, `Start-Optimizer.bat`, and `Запустить Оптимизатор.bat` with UTF-8 encoding (`chcp 65001`) and robust relative path resolution.
-  - Automated smoke and integrity test suite (`Test-Win11Optimizer.ps1`) covering 42 assertions with exit code 0 validation.
+  - Automated smoke and integrity test suite (`Test-Win11Optimizer.ps1`) covering 51 assertions with exit code 0 validation.
 
 ---
 

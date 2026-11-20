@@ -19,7 +19,7 @@
 ```
 win11-master-optimizer/
 ├── Win11Optimizer.ps1             # Main Orchestrator (CLI & Interactive TUI)
-├── Test-Win11Optimizer.ps1        # Automated Test Suite (42 assertions)
+├── Test-Win11Optimizer.ps1        # Automated Test Suite (51 assertions)
 ├── Start.bat / Start-Optimizer.bat # Multi-entry Elevation Launchers (UTF-8, UAC)
 ├── Запустить Оптимизатор.bat      # Native RU Elevation Launcher (UTF-8)
 ├── Modules/
@@ -82,6 +82,23 @@ win11-master-optimizer/
 ### 3.5. Network Tweaks & Nagle's Algorithm
 - **Prior Remark:** Applying `TcpAckFrequency=1` and `TCPNoDelay=1` across all interfaces can cause network instability on non-active virtual adapters.
 - **Audited Implementation:** The module scans active interface GUIDs via both `Get-NetAdapter` and the Tcpip parameter keys, applying Nagle overrides specifically to active physical and routing interfaces while maintaining backup snapshots for immediate reversion.
+
+### 3.6. Exact Subsystem State Restoration (Eliminating Default Assumption Flaws)
+- **Prior Remark:** Restoring Windows power schemes, netsh parameters, services, tasks, and network adapters to assumed "factory defaults" breaks user customizations and can leave previously disabled services/tasks unexpectedly active.
+- **Audited Implementation:** The optimizer captures exact state snapshots prior to modifications:
+  - **Powercfg:** Captures the initial active power scheme GUID and exact AC/DC indices for all processor power management parameters (`CPMINCORES`, `PERFEPP`, `PROCTHROTTLEMIN`, `PERFBOOSTMODE`), restoring them to the user's specific values upon rollback.
+  - **Netsh TCP:** Queries and snapshots active TCP parameters (`rss`, `autotuninglevel`, `timestamps`, `ecncapability`), restoring each parameter individually with write verification.
+  - **Services & Scheduled Tasks:** Captures initial `StartupType` and running `Status` for services, and initial `State` for scheduled tasks. On rollback, services return to their exact startup mode without forcing stopped services to start, and only tasks that were originally active are re-enabled.
+  - **Network Adapters & USB:** Captures adapter EEE/ULP properties and USB Selective Suspend AC/DC values along with WMI hub states, restoring each individually.
+
+### 3.7. Snapshot Security Validation Framework
+- **Prior Remark:** Unrestricted registry deserialization during rollback introduces vulnerabilities such as path traversal, registry injection, or accidental modification of sensitive Windows hives (`SAM`, `SECURITY`, `BCD`).
+- **Audited Implementation:** `Test-RegistrySnapshotEntrySecurity` executes strict schema validation on every snapshot entry before restoration:
+  - Rejects path traversal sequences (`..`), wildcards, and special characters.
+  - Restricts root hives strictly to `HKLM:\` and `HKCU:\`.
+  - Enforces a strict whitelist of permitted optimizer registry paths while blacklisting critical security hives (`SAM`, `SECURITY`, `BCD`, `\Control\Lsa`, `\Services\WinDefend`).
+  - Restricts registry value types to `DWord`, `QWord`, `String`, `ExpandString`, `MultiString`, and `Binary`.
+  - Insecure entries trigger `[SECURITY BLOCK]`, record isolated failures, and mark `Success = $false`.
 
 ---
 

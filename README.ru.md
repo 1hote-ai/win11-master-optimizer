@@ -37,7 +37,7 @@
 ```
 win11-master-optimizer/
 ├── Win11Optimizer.ps1             # Главный движок (TUI-меню и CLI-режимы)
-├── Test-Win11Optimizer.ps1        # Автоматический тестовый набор (42 проверки)
+├── Test-Win11Optimizer.ps1        # Автоматический тестовый набор (51 проверка)
 ├── Start.bat / Start-Optimizer.bat # Надежные лаунчеры с авто-UAC (UTF-8)
 ├── Modules/
 │   ├── Safety.psm1                # Точки восстановления, JSON-снимки и откат

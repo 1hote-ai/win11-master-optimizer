@@ -79,6 +79,7 @@ foreach ($item in $itemsToCopy) {
 # Copy directories
 Copy-Item -Path (Join-Path -Path $projectRoot -ChildPath "Modules") -Destination $stagingDir -Recurse -Force
 Copy-Item -Path (Join-Path -Path $projectRoot -ChildPath "docs") -Destination $stagingDir -Recurse -Force
+Remove-Item -Path (Join-Path -Path $stagingDir -ChildPath "docs\RELEASE_NOTES_*.md") -Force -ErrorAction SilentlyContinue
 Copy-Item -Path (Join-Path -Path $projectRoot -ChildPath "assets") -Destination $stagingDir -Recurse -Force
 Copy-Item -Path (Join-Path -Path $projectRoot -ChildPath ".github") -Destination $stagingDir -Recurse -Force
 Copy-Item -Path (Join-Path -Path $projectRoot -ChildPath "tools") -Destination $stagingDir -Recurse -Force

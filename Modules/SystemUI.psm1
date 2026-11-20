@@ -266,6 +266,48 @@ function Disable-UsbPowerSaving {
         return
     }
 
+    # Сохранение точных исходных параметров USB Selective Suspend (AC/DC) и WMI контроллеров
+    try {
+        $activeScheme = powercfg /getactivescheme 2>&1
+        $activeGuid = $null
+        if ($activeScheme -match '([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})') {
+            $activeGuid = $Matches[1]
+        }
+
+        $subGroup = "2a737441-1930-4402-8d77-b2bebba308a3"
+        $setting = "48e6b7a6-50f5-4782-a5d4-53bb8f07e226"
+        $origAC = $null; $origDC = $null
+
+        $lines = powercfg /q SCHEME_CURRENT $subGroup 2>&1
+        foreach ($line in $lines) {
+            if ($line -match ':\s*0x([0-9a-fA-F]+)') {
+                $val = [Convert]::ToInt32($Matches[1], 16)
+                if ($line -match '(сети|AC)') { $origAC = $val }
+                elseif ($line -match '(батарей|DC)') { $origDC = $val }
+            }
+        }
+
+        $savedWmi = @()
+        $powerMgmt = Get-CimInstance -ClassName MSPower_DeviceEnable -Namespace root\wmi -ErrorAction SilentlyContinue
+        if ($powerMgmt) {
+            foreach ($p in $powerMgmt) {
+                $savedWmi += [PSCustomObject]@{
+                    InstanceName = $p.InstanceName
+                    Enable       = [bool]$p.Enable
+                }
+            }
+        }
+
+        Save-StateSnapshot -Category "UsbPowerSettings" -StateData @{
+            ActiveSchemeGuid = $activeGuid
+            AC               = $origAC
+            DC               = $origDC
+            WmiInstances     = $savedWmi
+        } -DryRun:$DryRun | Out-Null
+    } catch {
+        Write-Verbose "Предупреждение при сохранении снимка USB: $_"
+    }
+
     try {
         # 1. Отключение USB Selective Suspend через powercfg для текущей схемы (AC и DC)
         powercfg -setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0 2>&1 | Out-Null
@@ -391,6 +433,44 @@ function Set-ExplorerHomeVisibility {
     }
 }
 
+function Restore-UsbPowerSettings {
+    [CmdletBinding()]
+    param()
+
+    Write-Host "[USB Optimizer] Откат настроек энергосбережения USB к исходным..." -ForegroundColor Yellow
+    $snap = Get-LatestStateSnapshot -Category "UsbPowerSettings"
+    if ($snap -and $snap.StateData) {
+        $targetScheme = if ($snap.StateData.ActiveSchemeGuid) { $snap.StateData.ActiveSchemeGuid } else { "SCHEME_CURRENT" }
+        $subGroup = "2a737441-1930-4402-8d77-b2bebba308a3"
+        $setting = "48e6b7a6-50f5-4782-a5d4-53bb8f07e226"
+
+        if ($null -ne $snap.StateData.AC) {
+            powercfg -setacvalueindex $targetScheme $subGroup $setting $snap.StateData.AC 2>&1 | Out-Null
+        }
+        if ($null -ne $snap.StateData.DC) {
+            powercfg -setdcvalueindex $targetScheme $subGroup $setting $snap.StateData.DC 2>&1 | Out-Null
+        }
+        powercfg -setactive $targetScheme 2>&1 | Out-Null
+
+        if ($snap.StateData.WmiInstances) {
+            foreach ($w in $snap.StateData.WmiInstances) {
+                $inst = Get-CimInstance -ClassName MSPower_DeviceEnable -Namespace root\wmi -ErrorAction SilentlyContinue |
+                    Where-Object { $_.InstanceName -eq $w.InstanceName }
+                if ($inst) {
+                    Set-CimInstance -InputObject $inst -Property @{ Enable = [bool]$w.Enable } -ErrorAction SilentlyContinue | Out-Null
+                }
+            }
+        }
+        Write-Host "  [OK] Исходные параметры USB Selective Suspend (AC/DC) для схемы $targetScheme точно восстановлены." -ForegroundColor Green
+    } else {
+        # Fallback только при отсутствии снимка
+        powercfg -setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 1 2>&1 | Out-Null
+        powercfg -setdcvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 1 2>&1 | Out-Null
+        powercfg -setactive SCHEME_CURRENT 2>&1 | Out-Null
+        Write-Host "  [WARNING] Снимок USB не найден: выставлен стандартный дефолт (1 / включено)." -ForegroundColor Yellow
+    }
+}
+
 function Restore-SystemUISettings {
     [CmdletBinding()]
     param()
@@ -410,10 +490,8 @@ function Restore-SystemUISettings {
     # Сброс контекстного меню на стандартное Win11
     Set-ClassicContextMenu -Enable $false -NoRestart
 
-    # Восстановление USB Selective Suspend в схеме питания (дефолт = 1 / включен)
-    powercfg -setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 1 2>&1 | Out-Null
-    powercfg -setdcvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 1 2>&1 | Out-Null
-    powercfg -setactive SCHEME_CURRENT 2>&1 | Out-Null
+    # Точное восстановление параметров энергосбережения USB
+    Restore-UsbPowerSettings
 
     # Восстановление раздела Главная
     Set-ExplorerHomeVisibility -Hide $false -NoRestart -ErrorAction SilentlyContinue
@@ -545,7 +623,7 @@ Export-ModuleMember -Function Set-ClassicContextMenu, Set-FileExplorerTweaks, `
                              Set-GameDvrOptimized, Enable-ClassicWindowsPhotoViewer, `
                              Disable-UsbPowerSaving, Disable-WindowsAutomaticMaintenance, `
                              Restore-WindowsAutomaticMaintenance, Set-ExplorerHomeVisibility, `
-                             Restore-SystemUISettings, Restart-ExplorerGraceful, `
+                             Restore-SystemUISettings, Restore-UsbPowerSettings, Restart-ExplorerGraceful, `
                              Get-UsbPowerSavingStatus, Get-ClassicContextMenuStatus, `
                              Get-FileExplorerTweaksStatus, Get-GameDvrStatus, `
                              Get-ClassicWindowsPhotoViewerStatus, Get-WindowsAutomaticMaintenanceStatus, `
