@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Community Discussions & General Questions
+    url: https://github.com/1hote-ai/win11-master-optimizer/discussions
+    about: Ask questions, discuss tuning theories, and share setup configurations with other users.
+  - name: Security Vulnerability Advisories
+    url: https://github.com/1hote-ai/win11-master-optimizer/security/advisories
+    about: Privately report potential security vulnerabilities or system crash vectors.

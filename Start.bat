@@ -1,4 +1,5 @@
-@echo off
+﻿@echo off
+@chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 title Windows 11 Master Optimizer
@@ -10,16 +11,23 @@ if not exist "%SCRIPT_PATH%" (
     )
 )
 
+if not exist "%SCRIPT_PATH%" (
+    echo [ОШИБКА] Win11Optimizer.ps1 не найден в "%~dp0" или "%~dp0Optimizer\"!
+    echo Убедитесь, что все файлы проекта находятся в одной папке.
+    pause
+    exit /b 1
+)
+
 net session >nul 2>&1
 if %errorlevel% equ 0 (
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_PATH%"
 ) else (
-    echo [UAC] ����� �ࠢ �����������...
+    echo [UAC] Запрос прав Администратора...
     powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell.exe -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File \""""%SCRIPT_PATH%\""""' -Verb RunAs"
 )
 
 if %errorlevel% neq 0 (
     echo.
-    echo �訡�� �� ����᪥. ������ ���� ������� ��� ��室�...
+    echo Ошибка при запуске. Нажмите любую клавишу для выхода...
     pause >nul
 )

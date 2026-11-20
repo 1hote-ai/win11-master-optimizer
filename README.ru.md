@@ -1,0 +1,160 @@
+<div align="center">
+
+![Windows 11 Master Optimizer Banner](assets/marketing/github-banner.svg)
+
+# Windows 11 Master Optimizer
+**Честная оптимизация задержек Windows 11. Без плацебо, с полным контролем и откатом.**
+
+[![OS - Windows 11 24H2 Ready](https://img.shields.io/badge/OS-Windows%2011%20(22H2%20--%2024H2)-00D2FF?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/1hote-ai/win11-master-optimizer)
+[![Engine - PowerShell & C# P/Invoke](https://img.shields.io/badge/Engine-PowerShell%20%2B%20NT--Kernel%20P%2FInvoke-10B981?style=for-the-badge&logo=powershell&logoColor=white)](https://github.com/1hote-ai/win11-master-optimizer)
+[![Safety - 2-Tier Rollback Engine](https://img.shields.io/badge/Safety-2--Уровневый%20Откат-6366F1?style=for-the-badge&logo=shield&logoColor=white)](docs/SAFETY_AUDIT.md)
+[![Tests - 34/34 Passing](https://img.shields.io/badge/Tests-34%2F34%20Пройдено-34D399?style=for-the-badge&logo=checkmarx&logoColor=white)](Test-Win11Optimizer.ps1)
+[![License Choice - MIT / Apache / GPL](https://img.shields.io/badge/Лицензия-На%20согласовании-F59E0B?style=for-the-badge&logo=open-source-initiative&logoColor=white)](docs/LICENSE_COMPARISON.md)
+
+[English](README.md) • [Русский](README.ru.md) • [Паспорт Продукта](docs/PRODUCT_PASSPORT.md) • [Аудит Безопасности](docs/SAFETY_AUDIT.md) • [Сообщить об ошибке](https://github.com/1hote-ai/win11-master-optimizer/issues/new/choose)
+
+</div>
+
+---
+
+## ⚡ Обзор проекта
+
+**Windows 11 Master Optimizer** — это модульный, прозрачный и полностью реверсивный комплекс оптимизации Windows 11, созданный специально для соревновательных геймеров, стримеров и требовательных пользователей.
+
+В отличие от сомнительных твикеров из 2010-х годов и закрытых `.bat` файлов, которые вслепую вырезают системные службы и ловят баны в античитах, наш проект построен на **четырех инженерных принципах**:
+
+1. **Детерминированность:** Каждая настройка привязана к документированным подсистемам Windows и поведению NT-ядра.
+2. **Двухуровневый откат (Rollback Engine):** Автоматическое создание официальных точек восстановления Windows вместе с покатегорийными JSON-снимками ключей реестра. Любое изменение можно вернуть в 1 клик.
+3. **Очистка памяти через NT-ядро:** Очистка Standby RAM кэша и замер таймера через нативный C# P/Invoke (`NtSetSystemInformation`, `NtQueryTimerResolution`) прямо из оперативной памяти без посторонних исполняемых файлов.
+4. **Безопасность оборудования:** Сканирование шины PCI для безопасного включения высокоприоритетных прерываний MSI Mode только для совместимых видеокарт, сетевых и аудио адаптеров.
+
+---
+
+## 🎯 Архитектура проекта
+
+```
+win11-master-optimizer/
+├── Win11Optimizer.ps1             # Главный движок (TUI-меню и CLI-режимы)
+├── Test-Win11Optimizer.ps1        # Автоматический тестовый набор (34 проверки)
+├── Start.bat / Start-Optimizer.bat # Надежные лаунчеры с авто-UAC (UTF-8)
+├── Modules/
+│   ├── Safety.psm1                # Точки восстановления, JSON-снимки и откат
+│   ├── GamingLatency.psm1         # MSI Mode, кванты CPU, очистка RAM, тумблер VBS
+│   ├── NetworkGaming.psm1         # Алгоритм Нейгла, RSS, TCP стек, DNS Benchmark и DoH
+│   ├── GpuDisplay.psm1            # Отключение MPO, HAGS, DirectX, HDCP Killer, очистка кэша
+│   ├── Debloat.psm1               # Отключение Recall 24H2, Copilot, Bing, телеметрии, Safe UWP
+│   ├── SystemUI.psm1              # Классическое контекстное меню, Проводник, USB, Maintenance
+│   ├── Diagnostics.psm1           # Аудит 26 настроек, Win32 таймер, замер DPC/ISR, пинг
+│   └── AppInstaller.psm1          # Тихий установщик Winget (25 проверенных программ)
+├── Backups/                       # JSON-снимки реестра перед каждым изменением
+└── Reports/                       # Сохраненные отчеты диагностики и аудита
+```
+
+---
+
+## 🛠 Функциональные блоки
+
+### 1. ⚡ Жёсткая оптимизация задержек и Standby RAM (`GamingLatency.psm1`)
+- **Очистка Standby RAM кэша NT-ядром:** Получает привилегию `SeProfileSingleProcessPrivilege` и вызывает функцию `NtSetSystemInformation(80, ref 4)`. Освобождает занятую кэшем оперативную память без сторонних утилит, устраняя микрофризы в играх с интенсивным выделением памяти (Escape from Tarkov, Rust, Battlefield).
+- **Автоматический MSI Mode (Message Signaled Interrupts):** Сканирует шину PCI и переводит видеокарту, сетевой адаптер и звуковой контроллер в MSI-режим с наивысшим приоритетом прерываний (`DevicePriority = 3`). Устраняет узкие места очередей DPC/ISR.
+- **Кванты планировщика CPU:** Устанавливает `Win32PrioritySeparation = 38 (0x26)` (короткие переменные кванты с 3-кратным приоритетом активного игрового окна) и отключает Power Throttling (`PowerThrottlingOff = 1`).
+- **SystemResponsiveness = 0:** Снимает 20% системную бронь Windows на фоновые мультимедиа-задачи, отдавая 100% мощности процессора игре.
+- **Core Parking Off:** Разблокирует 100% ядер процессора (`CPMINCORES = 100`) и выставляет `PERFEPP = 0`.
+- **Тумблер VBS / HVCI:** Опциональная возможность отключения изоляции ядра для слабых или старых CPU с честным предупреждением о балансе безопасности и FPS.
+
+### 2. 🎮 GPU, Дисплей и Кэш шейдеров (`GpuDisplay.psm1`)
+- **Тумблер MPO (Multi-Plane Overlay):** Установка `OverlayTestMode = 5` в DWM. Полностью устраняет мерцания, черные экраны и микро-статтеры при одновременной работе игр с Discord, OBS Studio и браузерами.
+- **HAGS (Hardware-Accelerated GPU Scheduling):** Включение аппаратного планировщика GPU (`HwSchMode = 2`), необходимого для генерации кадров DLSS 3 / FSR 3 и снижения задержки рендеринга.
+- **Оптимизации оконных игр DirectX:** Включение `DirectXUserGlobalSettings = "AutoPlayMode=1;"` для поддержки переменной частоты обновления (VRR / G-Sync) и минимальной задержки в borderless режиме.
+- **Защита видеодрайвера от Windows Update:** Блокировка автоматической перезаписи кастомных стабильных драйверов GPU (`ExcludeWUDriversInQualityUpdate = 1`).
+- **NVIDIA HDCP DRM Killer:** Поиск видеокарт NVIDIA и отключение DRM рукопожатий HDCP (`RMHdcpKeyglobZero = 1`) для устранения микро-задержек D3D.
+- **Очистка кэша шейдеров и Temp (7+ ГБ):** Безопасное удаление устаревших и битых файлов компиляции шейдеров (`NVIDIA DXCache/GLCache`, `Direct3D D3DSCache`, `AMD DxCache`, `TEMP`, `SoftwareDistribution\Download`).
+
+### 3. 🌐 Сетевой стек и DNS Switcher (`NetworkGaming.psm1`)
+- **Gaming DNS Benchmark:** Живое тестирование времени отклика (Query Latency + ICMP Ping) к ведущим провайдерам Anycast DNS (Cloudflare, Quad9, Google, AdGuard).
+- **1-Click DoH Switcher:** Применение DNS с автоматической регистрацией и включением шифрования DNS-over-HTTPS в Windows 11.
+- **Отключение алгоритма Нейгла:** Установка `TcpAckFrequency = 1`, `TCPNoDelay = 1`, `TcpDelAckTicks = 0` на активных адаптерах для мгновенной отправки пакетов без накопления буфера.
+- **Оптимизация глобального стека TCP:** Включение Receive Side Scaling (RSS), оптимизация TCP Window Auto-Tuning, отключение временных меток TCP и ECN.
+- **Отключение спящих режимов сетевой карты:** Автоматическое отключение Energy Efficient Ethernet (EEE), Green Ethernet и Ultra Low Power.
+
+### 4. 🛡 Smart Modern Debloat (Windows 11 24H2) (`Debloat.psm1`)
+- **Отключение AI Recall (24H2):** Блокировка фонового анализа активности (`DisableAIDataAnalysis = 1`) и отключение системного компонента DISM.
+- **Отключение Microsoft Copilot:** Полное скрытие кнопки и отключение процессов Windows Copilot через групповые политики.
+- **Отключение Bing Search в меню Пуск:** Поиск находит только локальные файлы на диске.
+- **Отключение виджетов и ленты новостей:** Освобождение оперативной памяти от фоновых веб-процессов MSN.
+- **Блокировка телеметрии:** Остановка и отключение служб `DiagTrack` и `dmwappushservice`.
+- **Безопасное удаление UWP Bloatware:** Жесткое сохранение Microsoft Store, Xbox, Калькулятора, Блокнота, Ножниц, Терминала и Защитника Windows.
+
+### 5. 🎨 Интерфейс и система (`SystemUI.psm1`)
+- **Классическое контекстное меню Windows 10:** Возврат быстрого меню без кнопки *"Показать дополнительные параметры"* через CLSID `{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}`.
+- **Оптимизация Проводника:** Отображение расширений файлов, скрытых папок, компактный режим, открытие *"Этот компьютер"*, скрытие блока "Рекомендуем" и спама в поиске.
+- **Отключение автоматического обслуживания Windows:** Блокировка дефрагментации диска во время соревновательных игр.
+- **Отключение энергосбережения USB:** Защита от микродропов мышек с высокой частотой опроса (1000–8000 Гц).
+
+### 6. 📊 Диагностика и аудит (`Diagnostics.psm1`)
+- **Аудит 26 параметров системы:** Разделение на 🟢 **ЭТИ НАСТРОЙКИ В НОРМЕ** и 🔴 **ЭТИ НАСТРОЙКИ НУЖНО ВЫПОЛНИТЬ** с точными подсказками.
+- **Win32 Timer Resolution:** Замер реальной частоты прерываний таймера Windows через `NtQueryTimerResolution`.
+- **Мониторинг DPC / ISR:** Замер процента времени DPC и частоты прерываний в реальном времени.
+
+### 7. 📦 Менеджер пакетов (`winget`) (`AppInstaller.psm1`)
+- Автоматическая тихая установка проверенных утилит (CapFrameX, HWiNFO64, Process Lasso, FanControl, LatencyMon, Steam, Discord, OBS Studio, C++ Runtimes).
+
+---
+
+## 🎮 Как запускать
+
+### Системные требования
+- **ОС:** Windows 11 (22H2, 23H2, 24H2 Build 26100+)
+- **PowerShell:** 5.1 (встроен в Windows) или PowerShell 7.2+
+- **Права:** Администратор (UAC токен)
+
+### Вариант 1: Запуск через лаунчер
+Дважды щелкните на `Start.bat` (или `Запустить Оптимизатор.bat`).
+
+### Вариант 2: Запуск из консоли PowerShell (CLI Режимы)
+```powershell
+# Запуск быстрой проверки оптимизации компьютера (26 параметров)
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode HealthCheck
+
+# Полный игровой супер-буст (Точка восстановления -> Latency -> RAM -> GPU -> Сеть -> UI)
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode AutoGaming
+
+# Режим Dry-Run: предварительный просмотр действий без внесения изменений
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode AutoGaming -DryRun
+
+# Быстрая очистка Standby RAM кэша через NT-ядро
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode RamClean
+
+# Замер задержек игровых DNS серверов
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode DnsBenchmark
+
+# Применение только твиков GPU и дисплея (MPO, HAGS, DirectX)
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode GpuOnly
+
+# Открытие мастера отката
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode Rollback
+```
+
+---
+
+## 🔄 Двухуровневый откат (Rollback Engine)
+
+1. **Уровень 1 — Точка восстановления Windows:** Перед применением комплексных пресетов автоматически создается точка восстановления `Checkpoint-Computer` с обходом 24-часового лимита Windows.
+2. **Уровень 2 — Покатегорийные JSON-снимки:** До любого изменения ключей реестра создается снимок в `Backups/Backup_<Категория>_<Дата>.json`.
+3. **Откат в 1 клик:** В меню выберите пункт `[10] ОТКАТ И ВОССТАНОВЛЕНИЕ`, либо запустите `Win11Optimizer.ps1 -Mode Rollback` и выберите пункт `[7] Полный сброс к заводским дефолтам Windows 11`.
+
+---
+
+## 🧪 Автоматическое тестирование
+
+Для запуска набора автоматических тестов (34 проверки):
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Test-Win11Optimizer.ps1
+```
+*(Все тесты завершаются со статусом `[PASS]` и Exit Code 0).*
+
+---
+
+## ⚖ Лицензирование
+
+Выбор лицензии находится на финальном согласовании владельцем проекта. С подробным сравнением лицензий **MIT**, **Apache 2.0** и **GPL-3.0** можно ознакомиться в документе [docs/LICENSE_COMPARISON.md](docs/LICENSE_COMPARISON.md).

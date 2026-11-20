@@ -1,0 +1,36 @@
+name: Feature Request
+description: Propose a new optimization, diagnostic metric, or enhancement
+title: "[FEAT]: "
+labels: ["enhancement", "discussion"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We love new ideas that improve system latency and game responsiveness! Please keep in mind our strict **Zero Snake Oil** policy: all proposals must correspond to real Windows subsystems or measurable latency improvements.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Is your feature request related to a specific problem?
+      description: A clear and concise description of what bottleneck you are facing.
+      placeholder: e.g. "When playing Apex Legends on AMD 7000 series, core affinity..."
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution / Optimization
+      description: Describe the technical implementation, registry keys, or Windows APIs to use.
+    validations:
+      required: true
+  - type: textarea
+    id: rollback_plan
+    attributes:
+      label: Rollback & Safety Plan
+      description: How should this setting be backed up and restored to Windows defaults?
+    validations:
+      required: true
+  - type: textarea
+    id: benchmark_evidence
+    attributes:
+      label: Empirical Evidence / Research
+      description: Links to Microsoft documentation, CapFrameX benchmarks, or LatencyMon metrics supporting this optimization.

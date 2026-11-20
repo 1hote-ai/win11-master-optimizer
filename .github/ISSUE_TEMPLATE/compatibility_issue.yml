@@ -1,0 +1,36 @@
+name: Compatibility Issue
+description: Report a conflict with specific hardware, anti-cheat, or enterprise software
+title: "[COMPAT]: "
+labels: ["compatibility", "hardware"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please report any hardware quirks, driver anomalies, or anti-cheat conflicts.
+  - type: input
+    id: component_name
+    attributes:
+      label: Hardware Component or Software Conflict
+      description: Exact model or anti-cheat name.
+      placeholder: e.g. Realtek 2.5GbE Gaming NIC / Riot Vanguard / BattlEye
+    validations:
+      required: true
+  - type: input
+    id: driver_version
+    attributes:
+      label: Driver / Software Version
+      placeholder: e.g. Realtek Driver v10.071.0315.2024
+    validations:
+      required: true
+  - type: textarea
+    id: conflict_description
+    attributes:
+      label: Nature of Conflict
+      description: What happened after applying the optimization? (e.g. NIC disconnected, audio crackled, anti-cheat flagged warning)
+    validations:
+      required: true
+  - type: textarea
+    id: resolution_steps
+    attributes:
+      label: Resolution / Reversion Steps
+      description: Did rolling back this specific category resolve the problem?

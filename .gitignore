@@ -1,6 +1,7 @@
 ﻿# Windows 11 Master Optimizer .gitignore
 Backups/*.json
 Reports/*.txt
+dist/
 *.tmp
 *.log
 .DS_Store

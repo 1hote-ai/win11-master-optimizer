@@ -1,173 +1,247 @@
-# Windows 11 Hardcore Optimizer & Latency Suite
-**Создано специально для Шефа | Поддержка Windows 11 (включая 24H2)**
+<div align="center">
+
+![Windows 11 Master Optimizer Banner](assets/marketing/github-banner.svg)
+
+# Windows 11 Master Optimizer
+**Zero Snake Oil. Pure Latency Reduction & Transparent System Control.**
+
+[![OS - Windows 11 24H2 Ready](https://img.shields.io/badge/OS-Windows%2011%20(22H2%20--%2024H2)-00D2FF?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/1hote-ai/win11-master-optimizer)
+[![Engine - PowerShell & C# P/Invoke](https://img.shields.io/badge/Engine-PowerShell%20%2B%20NT--Kernel%20P%2FInvoke-10B981?style=for-the-badge&logo=powershell&logoColor=white)](https://github.com/1hote-ai/win11-master-optimizer)
+[![Safety - 2-Tier Rollback Engine](https://img.shields.io/badge/Safety-2--Tier%20Rollback%20Engine-6366F1?style=for-the-badge&logo=shield&logoColor=white)](docs/SAFETY_AUDIT.md)
+[![Tests - 34/34 Passing](https://img.shields.io/badge/Tests-34%2F34%20Passing-34D399?style=for-the-badge&logo=checkmarx&logoColor=white)](Test-Win11Optimizer.ps1)
+[![License Choice - MIT / Apache / GPL](https://img.shields.io/badge/License%20Choice-Review%20Pending-F59E0B?style=for-the-badge&logo=open-source-initiative&logoColor=white)](docs/LICENSE_COMPARISON.md)
+
+[English](README.md) • [Русский](README.ru.md) • [Documentation](docs/PRODUCT_PASSPORT.md) • [Safety Audit](docs/SAFETY_AUDIT.md) • [Bug Report](https://github.com/1hote-ai/win11-master-optimizer/issues/new/choose)
+
+</div>
 
 ---
 
-## 🚀 Обзор проекта
+## ⚡ Overview
 
-Данный комплекс представляет собой модульный, полностью автоматизированный All-in-One инструмент глубокой оптимизации Windows 11 для киберспортивных игр и максимальной системной отзывчивости.
+**Windows 11 Master Optimizer** is an open-source, non-destructive system tuning and diagnostic suite designed specifically for competitive gamers, streamers, and power users. 
 
-Он полностью заменяет разрозненный каталог устаревших ссылок (`C:\Users\egorv\Desktop\Windows11\Настройка Windows 11`) на современную интерактивную экосистему с гарантией безопасности:
-- **Авто-создание точек восстановления системы (System Restore Point)** перед любыми изменениями.
-- **Двухуровневый откат (Rollback)**: покатегорийный возврат исходных ключей реестра из JSON-снимков или полный возврат к заводским дефолтам Windows.
-- **Standby RAM Cleaner & WorkingSet Purge**: освобождение оперативной памяти на уровне NT-ядра без сомнительных утилит.
-- **Gaming DNS Benchmark & DoH Switcher**: живой замер задержек DNS и включение DNS-over-HTTPS.
-- **GPU & Display Powerhouse**: отключение MPO, включение HAGS, оптимизации DirectX для оконных игр, защита видеодрайверов и удаление гигабайтов поврежденного кэша шейдеров.
+Unlike legacy "black box" tweakers and opaque batch scripts from the 2010s that blindly purge system services and trigger anti-cheat flags, this project operates on **four engineering cornerstones**:
+
+1. **Deterministic Execution:** Every parameter modification corresponds to documented Microsoft Windows Subsystems and NT-kernel behaviors.
+2. **Two-Tier Rollback Engine:** Automated creation of Windows System Restore Points combined with per-operation JSON registry snapshots. Any change can be reverted in one click.
+3. **Native NT-Kernel Memory Management:** Standby RAM cleaning and high-resolution timer queries use native Win32/NT-kernel P/Invoke (`NtSetSystemInformation`, `NtQueryTimerResolution`), dropping zero closed-source binaries onto your disk.
+4. **Hardware & Driver Awareness:** PCI bus introspection ensures high-priority MSI interrupts are only assigned to compatible GPU, Network, and Audio controllers without risking BSODs.
 
 ---
 
-## ⚡ Архитектура и Структура Файлов
+## 🎯 Architecture & What Makes It Different
 
 ```
-C:\Users\egorv\Desktop\Windows11\
-├── Запустить Оптимизатор.bat        <-- Главный ярлык запуска от Администратора (RU)
-├── Start-Optimizer.bat              <-- Альтернативный англоязычный лаунчер
-└── Optimizer\
-    ├── Start.bat                    <-- Локальный лаунчер
-    ├── Win11Optimizer.ps1           <-- Главный исполняемый движок (TUI + CLI)
-    ├── Test-Win11Optimizer.ps1      <-- Автоматизированный тестовый набор (28 тестов)
-    ├── README.md                    <-- Данная инженерная документация
-    ├── Backups\                     <-- Автоматические JSON-снимки реестра для отката
-    ├── Reports\                     <-- Сохраненные отчеты диагностики и аудита
-    └── Modules\
-        ├── Safety.psm1              <-- Точки восстановления и движок снимков/отката
-        ├── GamingLatency.psm1       <-- MSI Mode, CPU Scheduling, Standby RAM Cleaner
-        ├── NetworkGaming.psm1       <-- Nagle, RSS, DNS Benchmark & DoH Switcher
-        ├── GpuDisplay.psm1          <-- MPO, HAGS, DirectX Windowed, HDCP, Очистка кэша GPU
-        ├── Debloat.psm1             <-- Отключение Recall (24H2), Copilot, Bing, Telemetry
-        ├── SystemUI.psm1            <-- Classic меню, Проводник, Главная, Пуск, Maintenance
-        ├── AppInstaller.psm1        <-- Тихий установщик Winget (замена 170+ ссылок)
-        └── Diagnostics.psm1         <-- Аудит 24+ настроек, пинг, DPC/ISR, таймер Win32
+win11-master-optimizer/
+├── Win11Optimizer.ps1             # Main Orchestrator (TUI Menu & CLI Engine)
+├── Test-Win11Optimizer.ps1        # Automated Test Suite (34 automated assertions)
+├── Start.bat / Start-Optimizer.bat # Clean Elevation Launchers (UTF-8, UAC Auto-Elevation)
+├── Modules/
+│   ├── Safety.psm1                # System Restore Points, JSON Snapshots & Rollback
+│   ├── GamingLatency.psm1         # MSI Mode, CPU Scheduling, RAM Cleaner, VBS Toggle
+│   ├── NetworkGaming.psm1         # Nagle Algorithm, RSS, TCP Stack, DNS Benchmark & DoH
+│   ├── GpuDisplay.psm1            # MPO Fix, HAGS, DirectX Windowed, HDCP Killer, Cache Clean
+│   ├── Debloat.psm1               # 24H2 Recall, Copilot, Bing Search, Telemetry, Safe UWP
+│   ├── SystemUI.psm1              # Classic Menu, Explorer Tweaks, USB Power, Maintenance
+│   ├── Diagnostics.psm1           # 26-Point Health Audit, Timer Resolution, DPC/ISR, Ping
+│   └── AppInstaller.psm1          # Winget Silent Package Manager (25 curated tools)
+├── Backups/                       # JSON state snapshots before modifications
+└── Reports/                       # Timestamped diagnostic & audit logs
 ```
+
+### 🔬 Comparison with Legacy Tweakers
+
+| Feature / Criterion | Typical "FPS Boost" Packs | Win11 Master Optimizer |
+| :--- | :--- | :--- |
+| **Code Transparency** | ❌ Obfuscated BATs / Closed EXEs | ✅ 100% Auditable PowerShell & C# P/Invoke |
+| **Rollback Capability** | ❌ None ("Reinstall Windows") | ✅ System Restore Points + JSON Snapshots |
+| **Standby RAM Cleaner** | ❌ Unsigned 3rd-party binaries | ✅ In-memory NT-Kernel `NtSetSystemInformation` |
+| **Interrupt Management** | ❌ Manual or dangerous generic tools | ✅ Safe PCI Bus filter (`Display`, `Net`, `Media`) |
+| **Windows 11 24H2** | ❌ Broken by Windows 11 updates | ✅ Tested & optimized for 24H2 (Build 26100+) |
+| **Anti-Cheat Safe** | ❌ Flagged by Vanguard/EAC/VAC | ✅ 100% Standard Windows Management APIs |
 
 ---
 
-## 🔬 Что изменено по сравнению со старым набором Max.mov
+## 🛠 Feature Modules
 
-| Старый пак (Настройка Windows 11) | Новый Win11 Optimizer Suite |
-| :--- | :--- |
-| **171 ручной `.url` файл** (требовалось вручную кликать и скачивать софт) | **Автоматический silent-установщик `winget`**: установка в 1 клик без рекламы и браузера |
-| **Timer Resolution.7z** с архивным паролем "Плацебо", вызывающим детекты на VirusTotal | **Безопасная Win32-диагностика таймера**: честный замер через `NtQueryTimerResolution` без сомнительных DLL |
-| **Кривой `.bat` скрипт удаления GameBar** с синтаксической ошибкой `"$env:SystemRoot..."`, ломающий реестр | **Чистая хирургическая оптимизация GameDVR**: отключение фоновой записи и FSE-режим без повреждения Xbox/Store |
-| **Отсутствие бэкапов и отката**: изменения вносились "навсегда" | **Полный движок отката**: автоматические JSON-снимки до модификации + точки восстановления Windows |
-| **Ручные текстовые инструкции**, как кликать в настройках Windows | **Автоматизация через PowerShell API**: все твики применяются за секунды |
-| **Забитый кэш шейдеров и статтеры** | **Авто-очистка шейдеров DirectX/OpenGL и Temp (~7+ ГБ)** для устранения дропов FPS |
+### 1. ⚡ Gaming Latency & Memory (`GamingLatency.psm1`)
+- **Native NT-Kernel Standby RAM Cleaner:** Obtains `SeProfileSingleProcessPrivilege` and calls `NtSetSystemInformation(80, ref 4)` to purge the cached Standby list and trim idle working sets. Fixes allocation hitching in memory-intensive titles (Escape from Tarkov, Rust, Battlefield) without third-party utilities.
+- **Automated MSI Mode (Message Signaled Interrupts):** Scans the PCI bus and migrates GPU, Network, and Audio controllers to MSI mode with High Priority (`DevicePriority = 3`). Eliminates shared IRQ bottlenecks and minimizes DPC latency queues.
+- **CPU Scheduling Quantum Tuning:** Configures `Win32PrioritySeparation = 38 (0x26)` for short, variable quantum bursts favoring foreground games, accompanied by `PowerThrottlingOff = 1`.
+- **SystemResponsiveness = 0:** Removes Windows 20% background multimedia scheduling reserve, allocating 100% CPU time to the active process.
+- **Core Parking & Energy Performance:** Unparks all CPU cores (`CPMINCORES = 100`) and forces `PERFEPP = 0` for constant peak frequency responsiveness.
+- **VBS / HVCI Security Toggle:** Optional opt-in toggle to disable Hypervisor-Enforced Code Integrity for older CPUs, with clear security tradeoff warnings.
 
----
+### 2. 🎮 GPU, Display & Shader Cache (`GpuDisplay.psm1`)
+- **DWM Multi-Plane Overlay (MPO) Toggle:** Sets `OverlayTestMode = 5` in DWM. Completely eliminates display flicker, black screens, and micro-stutters when running borderless games alongside Discord, OBS, or Chrome.
+- **HAGS (Hardware-Accelerated GPU Scheduling):** Toggles `HwSchMode = 2`, required for DLSS 3 / FSR 3 frame generation and reduced input-to-display latency.
+- **DirectX Borderless Window Optimization:** Enables `AutoPlayMode = 1;` in `UserGpuPreferences` for low latency and Variable Refresh Rate (VRR / G-Sync) support in borderless windows.
+- **GPU Driver Protection:** Blocks Windows Update from overwriting your custom graphics driver (`ExcludeWUDriversInQualityUpdate = 1`).
+- **NVIDIA HDCP DRM Bypass:** Searches for NVIDIA cards and disables HDCP handshake overhead (`RMHdcpKeyglobZero = 1`) to reduce D3D rendering micro-delays.
+- **Shader Cache & Temp Purge (7+ GB):** Cleans corrupt and obsolete shader compilations across NVIDIA DXCache/GLCache, Direct3D D3DSCache, AMD DxCache, and Windows Temp.
 
-## 🛠 Ключевые Функциональные Блоки
+### 3. 🌐 Competitive Network Stack & DNS Switcher (`NetworkGaming.psm1`)
+- **Anycast Gaming DNS Benchmark:** Live latency measurement (Query Latency + ICMP Ping) against Cloudflare (`1.1.1.1`), Quad9 (`9.9.9.9`), Google (`8.8.8.8`), and AdGuard (`94.140.14.14`).
+- **1-Click DoH Switcher:** Applies selected DNS with automatic DNS-over-HTTPS (DoH) encryption registration.
+- **Nagle's Algorithm Disable:** Injects `TcpAckFrequency = 1`, `TCPNoDelay = 1`, and `TcpDelAckTicks = 0` on active network adapters for immediate packet dispatch without queuing delays.
+- **Global TCP Stack Optimization:** Enables Receive Side Scaling (RSS) across multi-core CPUs, normalizes TCP Window Auto-Tuning, disables unnecessary TCP timestamps, and disables ECN.
+- **NIC Power-Saving Disable:** Automatically disables Energy Efficient Ethernet (EEE), Green Ethernet, and Ultra Low Power modes to prevent packet drops.
 
-### 1. Жёсткая оптимизация и Standby RAM (Gaming Latency)
-- **Standby RAM Cleaner & WorkingSet Purge**: Высокопроизводительный C# P/Invoke хелпер, запрашивающий `SeProfileSingleProcessPrivilege` и вызывающий `NtSetSystemInformation` (`SystemMemoryListInformation = 80`, `MemoryPurgeStandbyList = 4` и `MemoryEmptyWorkingSets = 2`). Мгновенно освобождает сотни мегабайт и гигабайты забитого кэша оперативной памяти без ошибок `STATUS_PRIVILEGE_NOT_HELD`.
-- **MSI Mode (Message Signaled Interrupts)**: Сканирует шину PCI, находит видеокарту (RTX/GTX/Radeon), сетевую карту и звуковой контроллер, переключает их в высокоскоростной MSI-режим с наивысшим приоритетом прерываний (`DevicePriority = 3 / High`). Это минимизирует DPC/ISR лаги и устраняет микрофризы в соревновательных играх (CS2, Valorant, Dota 2, Apex Legends).
-- **CPU Scheduling (Win32PrioritySeparation = 38 / 0x26)**: Переменные короткие кванты с 3-кратным приоритетом активного игрового процесса.
-- **Power Throttling Off & Core Parking Off**: 100% ядер процессора всегда активны без падения частот.
-- **SystemResponsiveness = 0**: 100% ресурсов процессора отдаются игре без 20% системной брони Windows.
-- **Тумблер VBS / HVCI**: Возможность отключения изоляции ядра для слабых или старых CPU для прироста 5–15% FPS.
+### 4. 🛡 Modern Debloat (Windows 11 24H2 Ready) (`Debloat.psm1`)
+- **Disable Windows 11 AI Recall (24H2):** Enforces `DisableAIDataAnalysis = 1` and disables the DISM Optional Feature.
+- **Disable Microsoft Copilot:** Removes the taskbar button and enforces `TurnOffWindowsCopilot = 1`.
+- **Disable Bing Search in Start Menu:** Restricts Start Menu search strictly to local files.
+- **Disable Widgets & News Feed:** Cleans taskbar bloat and stops background MSN Web Experience processes.
+- **Disable Telemetry & Diagnostics:** Disables `DiagTrack` (Connected User Experiences) and `dmwappushservice`.
+- **Safe UWP Removal with Strict Whitelist:** Uninstalls bloatware while strictly preserving Microsoft Store, Xbox, Calculator, Notepad, Paint, Snipping Tool, Terminal, and Windows Security.
 
-### 2. GPU, Дисплей и Кэш шейдеров (GpuDisplay.psm1)
-- **MPO Toggle (Multi-Plane Overlay)**: Установка `OverlayTestMode = 5` в DWM. Полностью устраняет мерцания экрана, черные экраны и статтеры при одновременной работе игр с Discord, OBS Studio и браузерами.
-- **HAGS (Hardware-Accelerated GPU Scheduling)**: Активация аппаратного планировщика GPU (`HwSchMode = 2`), необходимого для генерации кадров DLSS 3 / FSR 3 и уменьшения задержки ввода.
-- **Оптимизации оконных игр DirectX**: Активация `DirectXUserGlobalSettings = "AutoPlayMode=1;"` для borderless/оконных игр с поддержкой переменной частоты обновления (VRR / G-Sync).
-- **Защита видеодрайвера от Windows Update**: Блокировка автоматической перезаписи кастомных стабильных драйверов GPU (`ExcludeWUDriversInQualityUpdate = 1`).
-- **Динамический NVIDIA HDCP DRM Killer**: Автоматический поиск видеокарт NVIDIA на шине PCI и отключение DRM рукопожатий HDCP (`RMHdcpKeyglobZero = 1`) для устранения микро-задержек рендеринга.
-- **Очистка кэша шейдеров и Temp (7+ ГБ)**: Безопасное удаление устаревших и битых файлов компиляции шейдеров (`NVIDIA DXCache`, `GLCache`, `D3DSCache`, `AMD DxCache`, `TEMP`, `SoftwareDistribution\Download`).
+### 5. 🎨 System UI & Workflow (`SystemUI.psm1`)
+- **Classic Context Menu:** Reinstates the fast Windows 10 right-click menu via CLSID `{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}` without "Show more options".
+- **Clean Explorer View:** Shows file extensions, enables compact view, opens to "This PC", and removes search highlights.
+- **Disable Automatic Maintenance:** Stops background defragmentation and scans during active gameplay.
+- **USB Power Saving Disable:** Prevents high-polling mice (1000–8000 Hz) and keyboards from dropping connection.
 
-### 3. Киберспортивный сетевой стек и DNS Switcher (Network Stack)
-- **Gaming DNS Benchmark**: Живое тестирование времени отклика (Query Latency + ICMP Ping) к ведущим провайдерам Anycast DNS:
-  - Cloudflare (`1.1.1.1` / `1.0.0.1` + DoH)
-  - Quad9 (`9.9.9.9` / `149.112.112.112` + DoH)
-  - AdGuard (`94.140.14.14` / `94.140.15.15` + DoH с блокировкой рекламы)
-  - Google (`8.8.8.8` / `8.8.4.4` + DoH)
-  - Текущий DNS провайдера / роутера
-- **1-Click DoH Switcher**: Переключение DNS с автоматической регистрацией и включением шифрования DNS-over-HTTPS в Windows 11.
-- **Сброс на DHCP**: Мгновенный возврат к автоматическим настройкам роутера.
-- **Отключение алгоритма Нейгла (`TcpAckFrequency = 1`, `TCPNoDelay = 1`, `TcpDelAckTicks = 0`)**: Пакеты ввода отправляются немедленно.
-- **NetworkThrottlingIndex = 0xFFFFFFFF**: Полное снятие ограничения скорости не-мультимедийного сетевого трафика.
-- **Receive Side Scaling (RSS = enabled)**: Распределение сетевых очередей по нескольким ядрам CPU.
+### 6. 📊 Diagnostics & Latency Audit (`Diagnostics.psm1`)
+- **26-Point Comprehensive Health Audit:** Real-time system check classifying settings into `[✓] Optimal` and `[!] Action Required` with exact fix recommendations.
+- **Native Win32 Timer Resolution:** Real-time query of system timer tick frequency (`NtQueryTimerResolution`).
+- **Live DPC / ISR Counter:** Real-time sampling of DPC time and interrupt queue frequency.
 
-### 4. Smart Modern Debloat (Windows 11 24H2)
-- **Отключение AI Recall (24H2)**: Блокировка фонового анализа активности.
-- **Отключение Microsoft Copilot**: Полное скрытие кнопки и отключение процессов Windows Copilot.
-- **Отключение Bing Search в меню Пуск**: Меню Пуск моментально находит только локальные файлы.
-- **Отключение виджетов и ленты новостей** на панели задач.
-- **Блокировка телеметрии**: Остановка и отключение служб `DiagTrack` и `dmwappushservice`.
-- **Безопасное удаление UWP Bloatware** с жестким сохранением Microsoft Store, Xbox, Калькулятора, Блокнота и Ножниц.
-
-### 5. Интерфейс и система (System UI)
-- **Скрытие блока "Рекомендуем" в меню Пуск**: Включение режима `IsEducationEnvironment = 1` и `HideRecommendedSection = 1` для полного скрытия секции на Windows 11 Pro/Home.
-- **Скрытие раздела "Главная" (Home)**: Удаление из левой навигационной панели Проводника.
-- **Отключение автоматического обслуживания Windows**: Блокировка фоновой дефрагментации и сканирования диска (`MaintenanceDisabled = 1`) во время игр.
-- **Классическое контекстное меню Windows 10**: Возврат полного меню без кнопки *"Показать дополнительные параметры"*.
-- **Оптимизация Проводника**: Расширения файлов, скрытые файлы, открытие *"Этот компьютер"*, компактный вид.
-- **Активация быстрого Просмотра Фотографий Windows (`photoviewer.dll`)**.
-- **Отключение энергосбережения USB**: Защита от микродропов мыши и клавиатуры.
-
-### 6. Менеджер пакетов (`winget`)
-Интерактивное меню тихой установки проверенного софта (игры, утилиты, лаунчеры, браузеры, рантаймы C++).
-
-### 7. Проверка оптимизации компьютера (Health-Check & Рекомендации)
-- **Аудит 26 ключевых параметров системы**:
-  - 🟢 **ЭТИ НАСТРОЙКИ В НОРМЕ**
-  - 🔴 **ЭТИ НАСТРОЙКИ НУЖНО ВЫПОЛНИТЬ** (с рекомендацией и точным номером меню)
-- **Индикатор оптимизации (%) и вердикт**.
-- **Быстрое действие**: клавиша `1` для применения супер-буста в один клик.
+### 7. 📦 Silent App Installer (`AppInstaller.psm1`)
+- Native `winget` wrapper for 25 curated gaming essentials (CapFrameX, HWiNFO64, Process Lasso, FanControl, LatencyMon, Steam, Discord, OBS Studio, Visual C++ Runtimes).
 
 ---
 
-## 🎮 Как запускать
+## 🚀 Installation & Launch
 
-### Способ 1: Интерактивное меню
-Дважды щелкните на:
-`C:\Users\egorv\Desktop\Windows11\Запустить Оптимизатор.bat`
+### System Requirements
+- **OS:** Windows 11 (22H2, 23H2, 24H2 Build 26100+)
+- **PowerShell:** 5.1 (Built into Windows) or PowerShell 7.2+
+- **Privileges:** Administrator privileges (Elevated UAC token)
 
-```
-  ГЛАВНОЕ МЕНЮ ОПТИМИЗАЦИИ:
-  [1]   🔎  ПРОВЕРИТЬ ОПТИМИЗАЦИЮ ПК (Аудит 24+ настроек [✓] / [!])
-  [2]   🚀  ИГРОВОЙ СУПЕР-БУСТ (MSI, CPU, GPU, MPO, HAGS, Сеть, RAM, UI)
-  [3]   ⚡  ЖЁСТКАЯ ОПТИМИЗАЦИЯ (MSI Mode, CPU Scheduling, RAM Cleaner, VBS)
-  [4]   🌐  ИГРОВОЙ СЕТЕВОЙ СТЕК (Nagle Off, RSS, DNS Benchmark & DoH Switcher)
-  [5]   🎮  GPU, ДИСПЛЕЙ И КЭШ ШЕЙДЕРОВ (MPO, HAGS, HDCP, Очистка 7+ ГБ кэша)
-  [6]   🛡  SMART DEBLOAT (Recall 24H2, Copilot, Bing, Telemetry, Safe UWP)
-  [7]   🎨  ИНТЕРФЕЙС И СИСТЕМА (Classic Меню, Проводник, Главная, Пуск, Maintenance)
-  [8]   📦  МЕНЕДЖЕР ПРИЛОЖЕНИЙ WINGET (Замена 170+ устаревших веб-ссылок)
-  [9]   📊  ДИАГНОСТИКА ЗАДЕРЖЕК (Замер пинга, Live DPC/ISR, таймер Windows)
-  [10]  🔄  ОТКАТ И ВОССТАНОВЛЕНИЕ (Восстановление исходных параметров Windows)
-  [0]   🚪  Выход
-```
-
-### Способ 2: Запуск из PowerShell (CLI Режимы)
+### Option 1: Git Clone (Recommended)
 ```powershell
-# Запуск быстрой проверки оптимизации компьютера
+git clone https://github.com/1hote-ai/win11-master-optimizer.git
+cd win11-master-optimizer
+```
+Double-click `Start.bat` (or `Start-Optimizer.bat`), or run in PowerShell:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1
+```
+
+### Option 2: CLI Automation Modes
+Run specific tasks without entering the interactive menu:
+
+```powershell
+# Run the 26-point System Health Audit
 powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode HealthCheck
 
-# Полный игровой супер-буст
+# Apply the Full Gaming Boost preset (Safety Restore Point -> Low Latency -> RAM -> GPU -> Network -> UI)
 powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode AutoGaming
 
-# Очистка Standby RAM кэша
+# Dry-Run mode: Preview all planned changes without touching the system
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode AutoGaming -DryRun
+
+# In-memory NT-Kernel Standby RAM purge
 powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode RamClean
 
-# Тест игровых DNS серверов
+# Benchmark gaming DNS servers
 powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode DnsBenchmark
 
-# Применение только твиков GPU и дисплея (MPO, HAGS, DirectX)
+# Apply GPU & Display tweaks only (MPO, HAGS, DirectX)
 powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode GpuOnly
 
-# Просмотр изменений без их применения (Dry-Run режим)
-powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode AutoGaming -DryRun
-```
-
-### Способ 3: Откат (Rollback)
-В главном меню выберите пункт `[10] ОТКАТ И ВОССТАНОВЛЕНИЕ`, либо запустите:
-```powershell
+# Launch the Rollback Master
 powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode Rollback
 ```
 
 ---
 
-## 🛡 Проверка целостности и тесты
-Для запуска встроенного набора автоматических тестов:
+## 🔄 Two-Tier Rollback & Safety Engine
+
+Your system's stability is our highest priority:
+
+1. **Tier 1 — Windows System Restore Point:**  
+   Before applying presets, the optimizer automatically creates a named System Restore Point (`Checkpoint-Computer`), overriding the 24-hour Windows throttle.
+2. **Tier 2 — Granular JSON Registry Snapshots:**  
+   Before any registry key is modified, its exact path, name, existence state, and type are saved to `Backups/Backup_<Category>_<Timestamp>.json`.
+3. **1-Click Rollback:**  
+   Select `[10] ROLLBACK & RECOVERY` in the main menu to revert specific modules or restore all parameters back to official Microsoft Windows 11 factory defaults.
+
+---
+
+## 🧪 Verification & Automated Testing
+
+This repository includes an automated test suite with 34 assertions verifying module loading, snapshot creation, rollback integrity, hardware enumeration, and dry-run execution:
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\Test-Win11Optimizer.ps1
 ```
-*(Все 25 тестов завершаются со статусом `[PASS]` и Exit Code 0).*
+
+```
+========================================================
+     RUNNING WIN11 OPTIMIZER SMOKE & INTEGRITY TESTS    
+========================================================
+  Testing [Module: Safety.psm1 loads]... [PASS]
+  Testing [Safety: Snapshot & Rollback integrity test]... [PASS]
+  Testing [Hardware: GPU, Network and Sound cards detected]... [PASS]
+  Testing [RAM Cleaner: SeProfileSingleProcessPrivilege helper]... [PASS]
+  Testing [Diagnostics: Comprehensive optimization audit (26 settings)]... [PASS]
+========================================================
+  TEST RESULTS: Passed: 34 | Failed: 0
+========================================================
+```
+
+---
+
+## ❓ Frequently Asked Questions (FAQ)
+
+<details>
+<summary><b>Does this tool increase my average FPS by 100%?</b></summary>
+
+**No.** Any tweaker claiming massive average FPS increases on modern GPUs is selling snake oil. What this suite achieves is **frametime consistency**: it eliminates DPC interrupt latency spikes, resolves MPO stutter in borderless gaming, frees standby RAM allocation hitches, and optimizes CPU scheduling. The result is significantly better 1% and 0.1% low frametimes and reduced input delay.
+</details>
+
+<details>
+<summary><b>Will this break Windows Update or Microsoft Store?</b></summary>
+
+**No.** The debloat module strictly preserves Microsoft Store, Xbox app, Calculator, Notepad, Snipping Tool, and Windows Security (`SecHealthUI`). Windows Update remains fully functional; the only modification is preventing Windows Update from overwriting your custom GPU display drivers.
+</details>
+
+<details>
+<summary><b>Is it safe for Vanguard, Easy Anti-Cheat (EAC), and BattlEye?</b></summary>
+
+**Yes.** We do not patch game binaries, hook system DLLs, or inject runtime drivers. All optimizations use official Windows registry keys, PowerShell APIs, and documented NT-kernel system information calls.
+</details>
+
+<details>
+<summary><b>How do I completely undo everything?</b></summary>
+
+Launch `Win11Optimizer.ps1 -Mode Rollback` and select option `[7] Full Rollback to Windows Defaults`. It reads your original JSON snapshots and resets all modified keys and network stacks back to standard Windows defaults.
+</details>
+
+---
+
+## 🗺 Roadmap
+
+- [x] Windows 11 24H2 full compatibility
+- [x] NT-Kernel in-memory Standby RAM Cleaner
+- [x] 2-Tier Snapshot & Rollback Engine
+- [x] Automated 34-assertion Smoke Test Suite
+- [x] Anycast DNS Benchmark & DoH Switcher
+- [ ] Exportable HTML/JSON Health Audit Reports
+- [ ] Automated LatencyMon integration for pre/post DPC telemetry
+- [ ] Micro-benchmark recording tool for 1% Low frametimes
+- [ ] Community-voted custom game presets (CS2, Valorant, Apex Legends)
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions from developers, testers, and system enthusiasts! Please read [CONTRIBUTING.md](CONTRIBUTING.md) and our [SECURITY.md](SECURITY.md) guidelines before submitting a Pull Request.
+
+---
+
+## ⚖ License
+
+License selection is currently under review by the repository owner. A comprehensive comparison of **MIT**, **Apache 2.0**, and **GPL-3.0** is available in [docs/LICENSE_COMPARISON.md](docs/LICENSE_COMPARISON.md).
