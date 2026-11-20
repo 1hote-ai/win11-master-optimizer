@@ -10,7 +10,7 @@
 [![OS - Windows 11 24H2 Ready](https://img.shields.io/badge/OS-Windows%2011%20(22H2%20--%2024H2)-00D2FF?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/1hote-ai/win11-master-optimizer)
 [![Engine - PowerShell & C# P/Invoke](https://img.shields.io/badge/Engine-PowerShell%20%2B%20NT--Kernel%20P%2FInvoke-10B981?style=for-the-badge&logo=powershell&logoColor=white)](https://github.com/1hote-ai/win11-master-optimizer)
 [![Safety - 2-Tier Rollback Engine](https://img.shields.io/badge/Safety-2--Tier%20Rollback%20Engine-6366F1?style=for-the-badge&logo=shield&logoColor=white)](docs/SAFETY_AUDIT.md)
-[![Tests - 52/52 Passing](https://img.shields.io/badge/Tests-52%2F52%20Passing-34D399?style=for-the-badge&logo=checkmarx&logoColor=white)](Test-Win11Optimizer.ps1)
+[![Tests - 63/63 Passing](https://img.shields.io/badge/Tests-63%2F63%20Passing-34D399?style=for-the-badge&logo=checkmarx&logoColor=white)](Test-Win11Optimizer.ps1)
 [![License - MIT](https://img.shields.io/badge/License-MIT-3B82F6?style=for-the-badge&logo=open-source-initiative&logoColor=white)](LICENSE)
 
 [English](README.md) • [Русский](README.ru.md) • [Documentation](docs/PRODUCT_PASSPORT.md) • [Safety Audit](docs/SAFETY_AUDIT.md) • [Topics & SEO](docs/GITHUB_TOPICS.md) • [Bug Report](https://github.com/1hote-ai/win11-master-optimizer/issues/new/choose)
@@ -37,16 +37,16 @@ Unlike legacy "black box" tweakers and opaque batch scripts from the 2010s that 
 ```
 win11-master-optimizer/
 ├── Win11Optimizer.ps1             # Main Orchestrator (TUI Menu & CLI Engine)
-├── Test-Win11Optimizer.ps1        # Automated Test Suite (52 automated assertions)
+├── Test-Win11Optimizer.ps1        # Automated Test Suite (63 automated assertions)
 ├── Start.bat / Start-Optimizer.bat # Clean Elevation Launchers (UTF-8, UAC Auto-Elevation)
 ├── Modules/
-│   ├── Safety.psm1                # System Restore Points, JSON Snapshots & Rollback
-│   ├── GamingLatency.psm1         # MSI Mode, CPU Scheduling, RAM Cleaner, VBS Toggle
+│   ├── Safety.psm1                # System Restore Points, JSON Snapshots & Strict Allowlist
+│   ├── GamingLatency.psm1         # MSI Mode, CPU Scheduling, RAM Purge, 1:1 Raw Mouse, Keyboard Tuning, Laptop Guard
 │   ├── NetworkGaming.psm1         # Nagle Algorithm, RSS, TCP Stack, DNS Benchmark & DoH
 │   ├── GpuDisplay.psm1            # MPO Fix, HAGS, DirectX Windowed, HDCP Killer, Cache Clean
 │   ├── Debloat.psm1               # 24H2 Recall, Copilot, Bing Search, Telemetry, Safe UWP
-│   ├── SystemUI.psm1              # Classic Menu, Explorer Tweaks, USB Power, Maintenance
-│   ├── Diagnostics.psm1           # 26-Point Health Audit, Timer Resolution, DPC/ISR, Ping
+│   ├── SystemUI.psm1              # Classic Menu, Explorer Tweaks, Gallery Hide, Game Mode, USB Power
+│   ├── Diagnostics.psm1           # 31-Point Health Audit, Timer Resolution, DPC/ISR, Ping
 │   └── AppInstaller.psm1          # Winget Silent Package Manager (25 curated tools)
 ├── Backups/                       # JSON state snapshots before modifications
 └── Reports/                       # Timestamped diagnostic & audit logs
@@ -128,12 +128,32 @@ Windows 11 Master Optimizer provides both an interactive, dynamic Text User Inte
 - **USB Power Saving Disable:** Prevents high-polling mice (1000–8000 Hz) and keyboards from dropping connection.
 
 ### 6. 📊 Diagnostics & Latency Audit (`Diagnostics.psm1`)
-- **26-Point Comprehensive Health Audit:** Real-time system check classifying settings into `[✓] Optimal` and `[!] Action Required` with exact fix recommendations.
+- **31-Point Comprehensive Health Audit:** Real-time system check classifying settings into `[✓] Optimal` and `[!] Action Required` with exact fix recommendations.
 - **Native Win32 Timer Resolution:** Real-time query of system timer tick frequency (`NtQueryTimerResolution`).
 - **Live DPC / ISR Counter:** Real-time sampling of DPC time and interrupt queue frequency.
 
 ### 7. 📦 Silent App Installer (`AppInstaller.psm1`)
 - Native `winget` wrapper for 25 curated gaming essentials (CapFrameX, HWiNFO64, Process Lasso, FanControl, LatencyMon, Steam, Discord, OBS Studio, Visual C++ Runtimes).
+
+---
+
+## ⚡ 3-Tier Preset Architecture
+
+The suite features three tailored optimization tiers designed for specific use cases:
+
+1. **🛡️ Tier 1: Light (Surface / Office & Safe):**
+   - **Focus:** Privacy, clean UI, zero breakage of office or peripheral hardware.
+   - **Actions:** Telemetry & background tracking disabled (DiagTrack, dmwappushservice), Bing search in Start menu disabled, Copilot disabled, Widgets feed disabled, Recall disabled, File Explorer cleanups (extensions visible, compact mode, open This PC, recommendations hidden).
+   - **Strictly Preserved:** Print Spooler (`Spooler`), Bluetooth (`bthserv`), Network Sharing / Discovery, Windows Update, BITS, and standard balanced power profile / USB power savings (safe for office PCs and battery life).
+
+2. **⚖️ Tier 2: Balanced (Medium / Daily Driver & Gaming):**
+   - **Focus:** Smooth gaming and system cleanup safe for daily drivers and laptops.
+   - **Actions:** All tweaks in Light + GameDVR background recording disabled, FSE enabled, Game Mode forced on, DirectX Windowed optimizations (`AutoPlayMode=1;`), Network RSS enabled, TCP Window Auto-Tuning normal, safe UWP debloat (strict whitelist preserving Store, Xbox, Calc, Notepad, Paint, Security), shader cache and Temp cleanup.
+   - **Preserved:** No aggressive hardware priority modifications or battery-draining power schemes.
+
+3. **⚡ Tier 3: Ultra Gaming (Esports / Maximum):**
+   - **Focus:** Extreme input latency reduction (DPC/ISR queue mitigation, 1% low frametime smoothing) for competitive gaming rigs.
+   - **Actions:** All tweaks in Balanced + MSI Mode (High Priority for GPU, NIC, Sound), CPU scheduling quantum 38 (`0x26`), Power Throttling disabled, Standby RAM purge (`NtSetSystemInformation`), Ultimate Performance power plan with **Laptop Guard** (WMI battery detection preventing DC battery drain), HAGS enabled, MPO disabled (`OverlayTestMode=5`), GPU driver update protection, NVIDIA HDCP DRM killer, full Nagle's algorithm killer on all adapters, USB power saving disabled, 1:1 Raw Mouse Input (`MouseSpeed=0, Threshold=0`), Keyboard Response Tuning (`Delay=0, Speed=31`), and File Explorer Gallery node removal (`ThisPCPolicy=Hide`).
 
 ---
 
@@ -158,14 +178,23 @@ powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1
 Run specific tasks without entering the interactive menu:
 
 ```powershell
-# Run the 26-point System Health Audit
-powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode HealthCheck
+# Tier 3: Ultra Gaming esports preset (MSI, CPU Quantum 38, MPO, HAGS, Nagle, Raw Input)
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode UltraGaming
 
-# Apply the Full Gaming Boost preset (Safety Restore Point -> Low Latency -> RAM -> GPU -> Network -> UI)
+# Tier 2: Balanced preset (Safe for laptops & daily drivers)
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode Balanced
+
+# Tier 1: Light preset (Privacy, Clean UI, peripheral safe)
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode Light
+
+# Backward compatible alias to UltraGaming
 powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode AutoGaming
 
 # Dry-Run mode: Preview all planned changes without touching the system
-powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode AutoGaming -DryRun
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode UltraGaming -DryRun
+
+# Run the 31-point System Health Audit
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode HealthCheck
 
 # In-memory NT-Kernel Standby RAM purge
 powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode RamClean
@@ -191,13 +220,13 @@ Your system's stability is our highest priority:
 2. **Tier 2 — Granular JSON Registry Snapshots:**  
    Before any registry key is modified, its exact path, name, existence state, and type are saved to `Backups/Backup_<Category>_<Timestamp>.json`.
 3. **1-Click Rollback:**  
-   Select `[10] ROLLBACK & RECOVERY` in the main menu to revert specific modules or restore all parameters back to official Microsoft Windows 11 factory defaults.
+   Select `[11] ОТКАТ И ВОССТАНОВЛЕНИЕ` in the main menu to revert specific modules or restore all parameters back to official Microsoft Windows 11 factory defaults.
 
 ---
 
 ## 🧪 Verification & Automated Testing
 
-This repository includes an automated test suite with 52 assertions verifying module loading, snapshot creation, granular rollback integrity, hardware enumeration, and dry-run execution:
+This repository includes an automated test suite with 63 assertions verifying module loading, snapshot creation, granular rollback integrity, hardware enumeration, and dry-run execution:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\Test-Win11Optimizer.ps1
@@ -211,9 +240,12 @@ powershell -ExecutionPolicy Bypass -File .\Test-Win11Optimizer.ps1
   Testing [Safety: Snapshot & Rollback integrity test]... [PASS]
   Testing [Hardware: GPU, Network and Sound cards detected]... [PASS]
   Testing [RAM Cleaner: SeProfileSingleProcessPrivilege helper]... [PASS]
-  Testing [Diagnostics: Comprehensive optimization audit (26 settings)]... [PASS]
+  Testing [Diagnostics: Comprehensive optimization audit (31 settings)]... [PASS]
+  Testing [Preset: Light preset dry-run completes without error]... [PASS]
+  Testing [Preset: Balanced preset dry-run completes without error]... [PASS]
+  Testing [Preset: UltraGaming preset dry-run completes without error]... [PASS]
 ========================================================
-  TEST RESULTS: Passed: 52 | Failed: 0
+  TEST RESULTS: Passed: 63 | Failed: 0
 ========================================================
 ```
 
@@ -252,7 +284,8 @@ Launch `Win11Optimizer.ps1 -Mode Rollback` and select option `[8] Full Rollback 
 - [x] Windows 11 24H2 full compatibility
 - [x] NT-Kernel in-memory Standby RAM Cleaner
 - [x] Granular 2-Tier Snapshot & Rollback Engine with per-parameter tracking
-- [x] Automated 52-assertion Smoke & Integrity Test Suite
+- [x] Automated 63-assertion Smoke & Integrity Test Suite
+- [x] 3-Tier Preset Architecture (Light, Balanced, Ultra Gaming) with Laptop Guard
 - [x] Anycast DNS Benchmark & DoH Switcher
 - [ ] Exportable HTML/JSON Health Audit Reports
 - [ ] Automated LatencyMon integration for pre/post DPC telemetry

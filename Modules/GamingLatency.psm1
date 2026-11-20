@@ -249,14 +249,48 @@ function Get-ProcessorPowerSettingsState {
     }
 }
 
+function Test-IsLaptopDevice {
+    [CmdletBinding()]
+    param()
+
+    try {
+        $batteries = @(Get-CimInstance -ClassName Win32_Battery -ErrorAction SilentlyContinue)
+        if ($batteries.Count -gt 0) {
+            return $true
+        }
+        $enclosure = Get-CimInstance -ClassName Win32_SystemEnclosure -ErrorAction SilentlyContinue
+        if ($enclosure -and $enclosure.ChassisTypes) {
+            $laptopChassis = @(8, 9, 10, 11, 12, 14, 18, 21, 31, 32)
+            foreach ($t in $enclosure.ChassisTypes) {
+                if ($t -in $laptopChassis) {
+                    return $true
+                }
+            }
+        }
+    } catch {
+        Write-Verbose "Laptop detection check error: $_"
+    }
+    return $false
+}
+
 function Enable-UltimatePerformancePlan {
     [CmdletBinding()]
     param([switch]$DryRun = $false)
 
     Write-Host "`n[Power Plan] Активация схемы питания 'Максимальная производительность' (Ultimate Performance)..." -ForegroundColor Cyan
 
+    $isLaptop = Test-IsLaptopDevice
+    if ($isLaptop) {
+        Write-Host "  [Laptop Guard] Обнаружена батарея (ноутбук/портативное устройство)!" -ForegroundColor Yellow
+        Write-Host "  [Laptop Guard] Внимание: режим максимальной производительности адаптирован только для питания от сети (AC)." -ForegroundColor Yellow
+        Write-Host "  [Laptop Guard] Энергосбережение при работе от аккумулятора (DC) сохранено во избежание ускоренного износа." -ForegroundColor Yellow
+    }
+
     if ($DryRun) {
         Write-Host "  [DRY-RUN] Будет разблокирована и активирована схема питания Ultimate Performance." -ForegroundColor DarkGray
+        if ($isLaptop) {
+            Write-Host "  [DRY-RUN] [Laptop Guard] Параметры DC останутся энергоэффективными для защиты батареи." -ForegroundColor DarkGray
+        }
         return $true
     }
 
@@ -321,9 +355,18 @@ function Set-CpuGamingScheduling {
 
     Write-Host "`n[CPU Optimization] Применение низколатентного планирования потоков и отключение Power Throttling..." -ForegroundColor Cyan
 
+    $isLaptop = Test-IsLaptopDevice
+    if ($isLaptop) {
+        Write-Host "  [Laptop Guard] Обнаружена батарея: агрессивное отключение парковки ядер CPU применяется исключительно для режима от сети (AC)." -ForegroundColor Yellow
+        Write-Host "  [Laptop Guard] Энергосберегающий профиль для работы от батареи (DC) полностью сохранен." -ForegroundColor Yellow
+    }
+
     if ($DryRun) {
         Write-Host "  [DRY-RUN] Будет установлено: PowerThrottlingOff = 1, Win32PrioritySeparation = 38 (0x26)" -ForegroundColor DarkGray
-        Write-Host "  [DRY-RUN] Будет отключен Core Parking (CPMINCORES=100) и выставлен PERFEPP=0" -ForegroundColor DarkGray
+        Write-Host "  [DRY-RUN] Будет отключен Core Parking (CPMINCORES=100) и выставлен PERFEPP=0 для сети (AC)." -ForegroundColor DarkGray
+        if ($isLaptop) {
+            Write-Host "  [DRY-RUN] [Laptop Guard] Параметры DC останутся энергоэффективными." -ForegroundColor DarkGray
+        }
         return
     }
 
@@ -747,10 +790,200 @@ function Get-SystemResponsivenessStatus {
     }
 }
 
+function Set-RawMouseInput {
+    [CmdletBinding()]
+    param(
+        [switch]$DryRun = $false
+    )
+
+    Write-Host "`n[Mouse Optimizer] Настройка 1:1 Raw Mouse Input (отключение акселерации курсора)..." -ForegroundColor Cyan
+
+    $mouseKey = "HKCU:\Control Panel\Mouse"
+
+    if ($DryRun) {
+        Write-Host "  [DRY-RUN] Будет установлено: MouseSpeed=0, MouseThreshold1=0, MouseThreshold2=0 в $mouseKey" -ForegroundColor DarkGray
+        Write-Host "  [DRY-RUN] Windows pointer acceleration ('Повышенная точность указателя') будет полностью отключена для истинного 1:1 отклика сенсора." -ForegroundColor DarkGray
+        return
+    }
+
+    $targets = @(
+        @{ Path = $mouseKey; Name = "MouseSpeed" },
+        @{ Path = $mouseKey; Name = "MouseThreshold1" },
+        @{ Path = $mouseKey; Name = "MouseThreshold2" }
+    )
+    Save-RegistrySnapshot -Category "MouseInput" -RegistryTargets $targets -DryRun:$DryRun | Out-Null
+
+    try {
+        if (-not (Test-Path $mouseKey)) {
+            New-Item -Path $mouseKey -Force | Out-Null
+        }
+        Set-ItemProperty -Path $mouseKey -Name "MouseSpeed" -Value "0" -Type String -Force
+        Set-ItemProperty -Path $mouseKey -Name "MouseThreshold1" -Value "0" -Type String -Force
+        Set-ItemProperty -Path $mouseKey -Name "MouseThreshold2" -Value "0" -Type String -Force
+
+        # Вызов Win32 SystemParametersInfo для немедленного применения без перезагрузки
+        try {
+            $user32Type = @"
+using System;
+using System.Runtime.InteropServices;
+
+public class MouseNative {
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, IntPtr pvParam, uint fWinIni);
+}
+"@
+            if (-not ([System.Management.Automation.PSTypeName]'MouseNative').Type) {
+                Add-Type -TypeDefinition $user32Type -Language CSharp -ErrorAction SilentlyContinue
+            }
+            if ([System.Management.Automation.PSTypeName]'MouseNative'.Type) {
+                $mouseParams = [int[]]::new(3)
+                $mouseParams[0] = 0
+                $mouseParams[1] = 0
+                $mouseParams[2] = 0
+                $handle = [System.Runtime.InteropServices.GCHandle]::Alloc($mouseParams, [System.Runtime.InteropServices.GCHandleType]::Pinned)
+                try {
+                    [MouseNative]::SystemParametersInfo(0x001D, 0, $handle.AddrOfPinnedObject(), 0x01 -bor 0x02) | Out-Null
+                } finally {
+                    $handle.Free()
+                }
+            }
+        } catch {
+            Write-Verbose "Native SystemParametersInfo call notice: $_"
+        }
+
+        Write-Host "  [OK] 1:1 Raw Mouse Input активирован: акселерация мыши отключена (MouseSpeed=0, Threshold1=0, Threshold2=0)." -ForegroundColor Green
+    } catch {
+        Write-Host "  [ERROR] Ошибка настройки параметров мыши: $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
+function Restore-RawMouseInput {
+    [CmdletBinding()]
+    param()
+
+    Write-Host "[Mouse Optimizer] Откат параметров мыши к исходному состоянию..." -ForegroundColor Yellow
+    $restored = Restore-RegistrySnapshot -Category "MouseInput"
+    if (-not $restored.Success) {
+        $mouseKey = "HKCU:\Control Panel\Mouse"
+        if (Test-Path $mouseKey) {
+            Set-ItemProperty -Path $mouseKey -Name "MouseSpeed" -Value "1" -Type String -Force -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $mouseKey -Name "MouseThreshold1" -Value "6" -Type String -Force -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $mouseKey -Name "MouseThreshold2" -Value "10" -Type String -Force -ErrorAction SilentlyContinue
+        }
+        Write-Host "[Mouse Optimizer] Применены стандартные значения Windows (MouseSpeed=1, Threshold1=6, Threshold2=10)." -ForegroundColor Green
+    }
+}
+
+function Get-RawMouseInputStatus {
+    [CmdletBinding()]
+    param()
+
+    $mouseKey = "HKCU:\Control Panel\Mouse"
+    $isOpt = $false
+    try {
+        $p = Get-ItemProperty -Path $mouseKey -ErrorAction SilentlyContinue
+        if ($p -and $p.PSObject.Properties['MouseSpeed'] -and $p.MouseSpeed -eq "0" -and `
+            $p.PSObject.Properties['MouseThreshold1'] -and $p.MouseThreshold1 -eq "0" -and `
+            $p.PSObject.Properties['MouseThreshold2'] -and $p.MouseThreshold2 -eq "0") {
+            $isOpt = $true
+        }
+    } catch {}
+
+    return [PSCustomObject]@{
+        Enabled     = $isOpt
+        Optimal     = $isOpt
+        Description = if ($isOpt) { "1:1 Raw Input (Акселерация выключена)" } else { "Стандартный курсор (Акселерация активна)" }
+    }
+}
+
+function Set-KeyboardResponseTuning {
+    [CmdletBinding()]
+    param(
+        [switch]$DryRun = $false
+    )
+
+    Write-Host "`n[Keyboard Optimizer] Настройка мгновенного отклика клавиатуры (Keyboard Response Tuning)..." -ForegroundColor Cyan
+
+    $kbKey = "HKCU:\Control Panel\Keyboard"
+    $accKey = "HKCU:\Control Panel\Accessibility\Keyboard Response"
+
+    if ($DryRun) {
+        Write-Host "  [DRY-RUN] Будет установлено: KeyboardDelay=0 (минимальная задержка перед повтором, 250 мс), KeyboardSpeed=31 (максимальная частота повтора)" -ForegroundColor DarkGray
+        Write-Host "  [DRY-RUN] Будет установлено: AutoRepeatDelay=250, AutoRepeatRate=31 в $accKey" -ForegroundColor DarkGray
+        return
+    }
+
+    $targets = @(
+        @{ Path = $kbKey; Name = "KeyboardDelay" },
+        @{ Path = $kbKey; Name = "KeyboardSpeed" },
+        @{ Path = $accKey; Name = "AutoRepeatDelay" },
+        @{ Path = $accKey; Name = "AutoRepeatRate" }
+    )
+    Save-RegistrySnapshot -Category "KeyboardResponse" -RegistryTargets $targets -DryRun:$DryRun | Out-Null
+
+    try {
+        if (-not (Test-Path $kbKey)) { New-Item -Path $kbKey -Force | Out-Null }
+        Set-ItemProperty -Path $kbKey -Name "KeyboardDelay" -Value "0" -Type String -Force
+        Set-ItemProperty -Path $kbKey -Name "KeyboardSpeed" -Value "31" -Type String -Force
+
+        if (-not (Test-Path $accKey)) { New-Item -Path $accKey -Force | Out-Null }
+        Set-ItemProperty -Path $accKey -Name "AutoRepeatDelay" -Value "250" -Type String -Force
+        Set-ItemProperty -Path $accKey -Name "AutoRepeatRate" -Value "31" -Type String -Force
+
+        Write-Host "  [OK] Задержка повтора клавиш снижена до минимума (KeyboardDelay=0, AutoRepeatDelay=250), скорость увеличена до максимума (31)." -ForegroundColor Green
+    } catch {
+        Write-Host "  [ERROR] Ошибка настройки параметров клавиатуры: $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
+function Restore-KeyboardResponseTuning {
+    [CmdletBinding()]
+    param()
+
+    Write-Host "[Keyboard Optimizer] Откат параметров клавиатуры к исходному состоянию..." -ForegroundColor Yellow
+    $restored = Restore-RegistrySnapshot -Category "KeyboardResponse"
+    if (-not $restored.Success) {
+        $kbKey = "HKCU:\Control Panel\Keyboard"
+        $accKey = "HKCU:\Control Panel\Accessibility\Keyboard Response"
+        if (Test-Path $kbKey) {
+            Set-ItemProperty -Path $kbKey -Name "KeyboardDelay" -Value "1" -Type String -Force -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $kbKey -Name "KeyboardSpeed" -Value "31" -Type String -Force -ErrorAction SilentlyContinue
+        }
+        if (Test-Path $accKey) {
+            Set-ItemProperty -Path $accKey -Name "AutoRepeatDelay" -Value "1000" -Type String -Force -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $accKey -Name "AutoRepeatRate" -Value "500" -Type String -Force -ErrorAction SilentlyContinue
+        }
+        Write-Host "[Keyboard Optimizer] Применены стандартные значения Windows (Delay=1, Speed=31, AutoRepeatDelay=1000, AutoRepeatRate=500)." -ForegroundColor Green
+    }
+}
+
+function Get-KeyboardResponseStatus {
+    [CmdletBinding()]
+    param()
+
+    $kbKey = "HKCU:\Control Panel\Keyboard"
+    $isOpt = $false
+    try {
+        $p = Get-ItemProperty -Path $kbKey -ErrorAction SilentlyContinue
+        if ($p -and $p.PSObject.Properties['KeyboardDelay'] -and $p.KeyboardDelay -eq "0" -and `
+            $p.PSObject.Properties['KeyboardSpeed'] -and $p.KeyboardSpeed -eq "31") {
+            $isOpt = $true
+        }
+    } catch {}
+
+    return [PSCustomObject]@{
+        Optimal     = $isOpt
+        Enabled     = $isOpt
+        Description = if ($isOpt) { "Сверхбыстрый повтор (Delay=0, Speed=31)" } else { "Стандартная задержка клавиатуры (Дефолт)" }
+    }
+}
+
 Export-ModuleMember -Function Get-PciMsiDevices, Set-GamingMsiMode, Restore-GamingMsiMode, `
                              Set-CpuGamingScheduling, Restore-CpuGamingScheduling, Get-ProcessorPowerSettingsState, `
-                             Enable-UltimatePerformancePlan, Restore-ActivePowerScheme, `
+                             Enable-UltimatePerformancePlan, Restore-ActivePowerScheme, Test-IsLaptopDevice, `
                              Set-SystemResponsivenessGaming, Restore-SystemResponsiveness, `
                              Get-VbsStatus, Set-VbsState, Clear-StandbyRamAndWorkingSet, `
                              Get-MsiModeStatus, Get-CpuGamingSchedulingStatus, `
-                             Get-UltimatePerformancePlanStatus, Get-SystemResponsivenessStatus
+                             Get-UltimatePerformancePlanStatus, Get-SystemResponsivenessStatus, `
+                             Set-RawMouseInput, Restore-RawMouseInput, Get-RawMouseInputStatus, `
+                             Set-KeyboardResponseTuning, Restore-KeyboardResponseTuning, Get-KeyboardResponseStatus

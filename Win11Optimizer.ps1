@@ -3,7 +3,7 @@
 
 [CmdletBinding()]
 param(
-    [ValidateSet("Interactive", "AutoGaming", "SafeDebloat", "LowLatency", "NetworkOnly", "GpuOnly", "DnsBenchmark", "RamClean", "Diagnostics", "HealthCheck", "Check", "Rollback")]
+    [ValidateSet("Interactive", "UltraGaming", "AutoGaming", "Balanced", "Light", "SafeDebloat", "LowLatency", "NetworkOnly", "GpuOnly", "DnsBenchmark", "RamClean", "Diagnostics", "HealthCheck", "Check", "Rollback")]
     [string]$Mode = "Interactive",
     [switch]$DryRun = $false,
     [switch]$NoRestorePoint = $false
@@ -49,51 +49,186 @@ function Show-Header {
     Write-Host "--------------------------------------------------------------------------" -ForegroundColor DarkGray
 }
 
-function Invoke-AutoGamingPreset {
+function Invoke-LightPreset {
+    [CmdletBinding()]
     param([switch]$DryRun = $false)
 
-    Write-Host "`n>>> ЗАПУСК ПОЛНОГО КОМПЛЕКСА 'ИГРОВОЙ СУПЕР-БУСТ' <<<" -ForegroundColor Green
-    Write-Host "Этот пресет выполнит: Точку восстановления -> Низкую задержку -> Очистку RAM -> GPU & MPO/HAGS -> Сеть -> Респонсивность -> GameDVR -> UI" -ForegroundColor White
+    Write-Host "`n>>> [ПРЕСЕТ 1/3] LIGHT: ПОВЕРХНОСТНАЯ ОПТИМИЗАЦИЯ (ОФИС & БЕЗОПАСНЫЙ) <<<" -ForegroundColor Green
+    Write-Host "Фокус: Конфиденциальность, чистый проводник, zero breakage периферии и офисных служб." -ForegroundColor White
 
     if (-not $NoRestorePoint -and -not $DryRun) {
-        New-OptimizerRestorePoint -Description "AutoGamingPreset" | Out-Null
+        New-OptimizerRestorePoint -Description "Preset_Light" | Out-Null
     }
 
-    # 1. Hardcore Gaming Latency & Standby RAM Purge
+    # 1. Отключение телеметрии и фонового трекинга
+    Disable-TelemetryAndDiagnostics -DryRun:$DryRun
+    Disable-BingSearchAndCortana -DryRun:$DryRun
+    Disable-Win11Copilot -DryRun:$DryRun
+    Disable-WidgetsAndNews -DryRun:$DryRun
+    Disable-Win11Recall -DryRun:$DryRun
+
+    # 2. Оптимизация интерфейса Проводника (расширения, компактный вид, Этот компьютер, без спама рекомендаций)
+    Set-FileExplorerTweaks -DryRun:$DryRun -NoRestart
+
+    # Примечание: Print Spooler, Bluetooth, Сетевое окружение, Windows Update, BITS и стандартный профиль питания USB строго сохранены!
+    Write-Host "`n[Safety Guarantee] Службы печати (Spooler), Bluetooth, сетевое обнаружение, обновления и энергосбережение USB строго сохранены." -ForegroundColor Cyan
+
+    if (-not $DryRun) {
+        Restart-ExplorerGraceful
+    }
+
+    Write-Host "`n==========================================================================" -ForegroundColor Green
+    Write-Host "  ПРЕСЕТ LIGHT УСПЕШНО ПРИМЕНЕН!" -ForegroundColor White
+    Write-Host "  Телеметрия устранена, Проводник очищен, вся офисная периферия в безопасности." -ForegroundColor Green
+    Write-Host "==========================================================================" -ForegroundColor Green
+}
+
+function Invoke-BalancedPreset {
+    [CmdletBinding()]
+    param([switch]$DryRun = $false)
+
+    Write-Host "`n>>> [ПРЕСЕТ 2/3] BALANCED: СРЕДНЯЯ ОПТИМИЗАЦИЯ (ДОМАШНЯЯ & ИГРОВАЯ) <<<" -ForegroundColor Green
+    Write-Host "Фокус: Плавный гейминг и очистка мусора, безопасная для повседневных ПК и ноутбуков." -ForegroundColor White
+
+    if (-not $NoRestorePoint -and -not $DryRun) {
+        New-OptimizerRestorePoint -Description "Preset_Balanced" | Out-Null
+    }
+
+    # 1. Базовые твики приватности и Проводника (все из Light)
+    Disable-TelemetryAndDiagnostics -DryRun:$DryRun
+    Disable-BingSearchAndCortana -DryRun:$DryRun
+    Disable-Win11Copilot -DryRun:$DryRun
+    Disable-WidgetsAndNews -DryRun:$DryRun
+    Disable-Win11Recall -DryRun:$DryRun
+    Set-FileExplorerTweaks -DryRun:$DryRun -NoRestart
+
+    # 2. Игровой режим и GameDVR (FSE + отключение фоновой записи)
+    Set-GameDvrOptimized -DryRun:$DryRun
+    Set-GameModeForced -DryRun:$DryRun
+
+    # 3. Оптимизации оконных игр DirectX
+    Set-DirectXWindowedOptimization -Enable $true -DryRun:$DryRun
+
+    # 4. Сетевой стек: включение RSS и TCP Auto-Tuning normal (без агрессивного убийцы Нейгла)
+    Set-BalancedNetworkStack -DryRun:$DryRun
+
+    # 5. Безопасный UWP Debloat (строгий вайтлист: Store, Xbox, Calc, Notepad, Paint, Security)
+    Remove-SafeBloatwareApps -DryRun:$DryRun
+
+    # 6. Очистка кэша шейдеров GPU и временных файлов
+    Clear-ShaderCacheAndTemp -DryRun:$DryRun
+
+    # Примечание: Без агрессивных приоритетов прерываний (MSI Mode) и экстремальных схем питания, разряжающих батарею ноутбука!
+    Write-Host "`n[Safety Guarantee] Агрессивные аппаратные приоритеты и энергоемкие схемы питания не применялись." -ForegroundColor Cyan
+
+    if (-not $DryRun) {
+        Restart-ExplorerGraceful
+    }
+
+    Write-Host "`n==========================================================================" -ForegroundColor Green
+    Write-Host "  ПРЕСЕТ BALANCED УСПЕШНО ПРИМЕНЕН!" -ForegroundColor White
+    Write-Host "  Система очищена, отзывчивость в играх повышена, стабильность на 100% сохранена." -ForegroundColor Green
+    Write-Host "==========================================================================" -ForegroundColor Green
+}
+
+function Invoke-UltraGamingPreset {
+    [CmdletBinding()]
+    param([switch]$DryRun = $false)
+
+    Write-Host "`n>>> [ПРЕСЕТ 3/3] ULTRA GAMING: КИБЕРСПОРТ / МАКСИМУМ <<<" -ForegroundColor Green
+    Write-Host "Фокус: Экстремальное снижение инпут-лага, минимизация DPC/ISR задержек и сглаживание 1% low FPS." -ForegroundColor White
+
+    # Laptop Guard: проверка наличия батареи
+    $isLaptop = Test-IsLaptopDevice
+    if ($isLaptop) {
+        Write-Host "`n  [Laptop Guard WARNING] Обнаружена батарея (ноутбук/портативное устройство)!" -ForegroundColor Yellow
+        Write-Host "  [Laptop Guard] Внимание: режим Ultra Gaming настраивает схему питания для максимальной производительности." -ForegroundColor Yellow
+        Write-Host "  [Laptop Guard] При работе от батареи (DC) энергосберегающие состояния будут сохранены для защиты аккумулятора." -ForegroundColor Yellow
+    }
+
+    if (-not $NoRestorePoint -and -not $DryRun) {
+        New-OptimizerRestorePoint -Description "Preset_UltraGaming" | Out-Null
+    }
+
+    # 1. Приватность, телеметрия и UWP debloat (все из Balanced)
+    Disable-TelemetryAndDiagnostics -DryRun:$DryRun
+    Disable-BingSearchAndCortana -DryRun:$DryRun
+    Disable-Win11Copilot -DryRun:$DryRun
+    Disable-WidgetsAndNews -DryRun:$DryRun
+    Disable-Win11Recall -DryRun:$DryRun
+    Remove-SafeBloatwareApps -DryRun:$DryRun
+    Clear-ShaderCacheAndTemp -DryRun:$DryRun
+
+    # 2. Новые сочные функции оптимизации ввода:
+    # a) 1:1 Raw Mouse Input (отключение акселерации)
+    Set-RawMouseInput -DryRun:$DryRun
+
+    # b) Настройка мгновенного отклика клавиатуры
+    Set-KeyboardResponseTuning -DryRun:$DryRun
+
+    # c) Скрытие узла Галереи Проводника
+    Set-ExplorerGalleryVisibility -Hide $true -DryRun:$DryRun -NoRestart
+
+    # d) Принудительный Game Mode
+    Set-GameModeForced -DryRun:$DryRun
+
+    # 3. Киберспортивный пайплайн низкой задержки CPU & прерываний:
+    # MSI Mode (High Priority для GPU, Сети и Звука)
     Set-GamingMsiMode -DryRun:$DryRun
+
+    # Кванты CPU 38 (0x26), отключение Power Throttling и Core Parking (с учетом Laptop Guard)
     Set-CpuGamingScheduling -DryRun:$DryRun
+
+    # Системная респонсивность (0% резерва, GPU Priority=8, Priority=6)
     Set-SystemResponsivenessGaming -DryRun:$DryRun
+
+    # Очистка Standby RAM кэша через NtSetSystemInformation
     Clear-StandbyRamAndWorkingSet -DryRun:$DryRun | Out-Null
 
-    # 2. GPU, Display, MPO, HAGS & DirectX Optimizations
+    # Схема питания Ultimate Performance (с учетом Laptop Guard)
+    Enable-UltimatePerformancePlan -DryRun:$DryRun | Out-Null
+
+    # 4. Комплекс GPU и дисплея:
+    # MPO Disabled (OverlayTestMode=5), HAGS Enabled, DirectX AutoPlayMode=1, WU Driver Protection, NVIDIA HDCP Killer
     Invoke-FullGpuDisplayOptimization -DryRun:$DryRun
 
-    # 3. Network Gaming Stack
+    # 5. Экстремальный сетевой стек: убийца алгоритма Нейгла на всех адаптерах + RSS + TCP Timestamps Off
     Set-GamingNetworkStack -DryRun:$DryRun
 
-    # 4. GameDVR & Explorer UI
+    # 6. UI, GameDVR и USB:
     Set-GameDvrOptimized -DryRun:$DryRun
     Set-FileExplorerTweaks -DryRun:$DryRun -NoRestart
     Disable-UsbPowerSaving -DryRun:$DryRun
+    Set-ClassicContextMenu -Enable $true -DryRun:$DryRun -NoRestart
 
-    # 5. Classic Context Menu
-    Set-ClassicContextMenu -Enable $true -DryRun:$DryRun
+    if (-not $DryRun) {
+        Restart-ExplorerGraceful
+    }
 
     Write-Host "`n==========================================================================" -ForegroundColor Green
-    Write-Host "  ИГРОВОЙ БУСТ УСПЕШНО ПРИМЕНЕН!" -ForegroundColor White
+    Write-Host "  ПРЕСЕТ ULTRA GAMING (КИБЕРСПОРТ) УСПЕШНО ПРИМЕНЕН!" -ForegroundColor White
+    Write-Host "  Все компоненты оптимизированы для достижения рекордной задержки ввода." -ForegroundColor Yellow
     Write-Host "  Рекомендуется перезагрузить компьютер для активации MSI Mode, квантов CPU и HAGS." -ForegroundColor Yellow
     Write-Host "==========================================================================" -ForegroundColor Green
+}
+
+function Invoke-AutoGamingPreset {
+    [CmdletBinding()]
+    param([switch]$DryRun = $false)
+
+    # Обратная совместимость: AutoGaming вызывает UltraGamingPreset
+    Invoke-UltraGamingPreset -DryRun:$DryRun
 }
 
 function Invoke-FullRollback {
     Write-Host "`n>>> МАСТЕР ОТКАТА И ВОССТАНОВЛЕНИЯ <<<" -ForegroundColor Yellow
     Write-Host "Выберите действие:" -ForegroundColor White
     Write-Host "  [1] Откатить настройки MSI Mode" -ForegroundColor White
-    Write-Host "  [2] Откатить оптимизацию процессора (CPU Scheduling / Power Throttling)" -ForegroundColor White
+    Write-Host "  [2] Откатить оптимизацию процессора и задержек (CPU, Mouse Raw Input, Keyboard)" -ForegroundColor White
     Write-Host "  [3] Откатить настройки сети (Nagle, TCP Stack)" -ForegroundColor White
     Write-Host "  [4] Откатить настройки GPU и дисплея (MPO, HAGS, HDCP, DirectX)" -ForegroundColor White
     Write-Host "  [5] Откатить настройки приватности и Debloat (Copilot, Bing, Telemetry)" -ForegroundColor White
-    Write-Host "  [6] Откатить настройки интерфейса (Проводник, GameDVR, Меню, Maintenance)" -ForegroundColor White
+    Write-Host "  [6] Откатить настройки интерфейса (Проводник, Галерея, GameDVR, GameMode, Меню, Maintenance)" -ForegroundColor White
     Write-Host "  [7] Восстановить частоту точек восстановления (SystemRestorePointCreationFrequency)" -ForegroundColor White
     Write-Host "  [8] ПОЛНЫЙ ОТКАТ ВСЕХ ОПТИМИЗАЦИЙ К ЗАВОДСКИМ ДЕФОЛТАМ WINDOWS" -ForegroundColor Yellow
     Write-Host "  [0] Отмена" -ForegroundColor Gray
@@ -102,21 +237,35 @@ function Invoke-FullRollback {
 
     switch ($rChoice) {
         "1" { Restore-GamingMsiMode }
-        "2" { Restore-CpuGamingScheduling; Restore-SystemResponsiveness }
+        "2" {
+            Restore-CpuGamingScheduling
+            Restore-SystemResponsiveness
+            Restore-RawMouseInput
+            Restore-KeyboardResponseTuning
+        }
         "3" { Restore-GamingNetworkStack; Restore-GamingDns | Out-Null }
         "4" { Restore-AllGpuDisplaySettings }
         "5" { Restore-DebloatSettings }
-        "6" { Restore-SystemUISettings; Restore-WindowsAutomaticMaintenance }
+        "6" {
+            Restore-SystemUISettings
+            Restore-WindowsAutomaticMaintenance
+            Restore-ExplorerGalleryVisibility
+            Restore-GameModeSettings
+        }
         "7" { Restore-SystemRestorePointCreationFrequency | Out-Null }
         "8" {
             Restore-GamingMsiMode
             Restore-CpuGamingScheduling
             Restore-SystemResponsiveness
+            Restore-RawMouseInput
+            Restore-KeyboardResponseTuning
             Restore-GamingNetworkStack
             Restore-AllGpuDisplaySettings
             Restore-DebloatSettings
             Restore-SystemUISettings
             Restore-WindowsAutomaticMaintenance
+            Restore-ExplorerGalleryVisibility
+            Restore-GameModeSettings
             Restore-GamingDns | Out-Null
             Restore-SystemRestorePointCreationFrequency | Out-Null
             Write-Host "`n[OK] Все параметры сброшены до стандартных значений Windows 11." -ForegroundColor Green
@@ -128,7 +277,10 @@ function Invoke-FullRollback {
 # Обработка неинтерактивных режимов CLI
 if ($Mode -ne "Interactive") {
     switch ($Mode) {
-        "AutoGaming"   { Invoke-AutoGamingPreset -DryRun:$DryRun }
+        "UltraGaming"  { Invoke-UltraGamingPreset -DryRun:$DryRun }
+        "AutoGaming"   { Invoke-UltraGamingPreset -DryRun:$DryRun }
+        "Balanced"     { Invoke-BalancedPreset -DryRun:$DryRun }
+        "Light"        { Invoke-LightPreset -DryRun:$DryRun }
         "SafeDebloat"  {
             if (-not $NoRestorePoint -and -not $DryRun) { New-OptimizerRestorePoint -Description "Debloat" | Out-Null }
             Disable-Win11Recall -DryRun:$DryRun
@@ -144,6 +296,8 @@ if ($Mode -ne "Interactive") {
             Set-CpuGamingScheduling -DryRun:$DryRun
             Set-SystemResponsivenessGaming -DryRun:$DryRun
             Clear-StandbyRamAndWorkingSet -DryRun:$DryRun
+            Set-RawMouseInput -DryRun:$DryRun
+            Set-KeyboardResponseTuning -DryRun:$DryRun
         }
         "NetworkOnly"  {
             if (-not $NoRestorePoint -and -not $DryRun) { New-OptimizerRestorePoint -Description "Network" | Out-Null }
@@ -204,6 +358,10 @@ function Show-HardcoreGamingMenu {
         $sysStat = Get-SystemResponsivenessStatus
         $vbsStat = Get-VbsStatus
         $isVbsOptimal = (-not $vbsStat.VbsActive)
+        $mouseStat = Get-RawMouseInputStatus
+        $kbStat = Get-KeyboardResponseStatus
+        $isLaptop = Test-IsLaptopDevice
+        $formFactorLabel = if ($isLaptop) { " [Ноутбук / Аккумулятор: Laptop Guard ВКЛ]" } else { " [Стационарный ПК / Desktop]" }
 
         $osMem = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
         $freeMemMb = if ($osMem) { [math]::Round($osMem.FreePhysicalMemory / 1024, 0) } else { 0 }
@@ -214,7 +372,7 @@ function Show-HardcoreGamingMenu {
         Write-OptimizerMenuItem -Number "2" -Title "Отключить Power Throttling и настроить кванты CPU" `
             -IsActive $cpuStat.Optimal -ActiveTag "[АКТИВНО ($($cpuStat.Description))]" -InactiveTag "[НЕ АКТИВНО (Win32Pri=$($cpuStat.Win32PrioritySeparation))]"
 
-        Write-OptimizerMenuItem -Number "3" -Title "Активировать схему 'Максимальная производительность'" `
+        Write-OptimizerMenuItem -Number "3" -Title "Активировать схему 'Максимальная производительность'$formFactorLabel" `
             -IsActive $pwrStat.Optimal -ActiveTag "[АКТИВНО (Ultimate Performance)]" -InactiveTag "[НЕ АКТИВНО (Дефолт схема)]"
 
         Write-OptimizerMenuItem -Number "4" -Title "Настроить SystemResponsiveness (0% резерва, 100% играм)" `
@@ -225,8 +383,14 @@ function Show-HardcoreGamingMenu {
         Write-OptimizerMenuItem -Number "6" -Title "Переключить изоляцию ядра (VBS / HVCI) [С предупреждением]" `
             -IsActive $isVbsOptimal -ActiveTag "[ВЫКЛЮЧЕНА (Оптимально +FPS)]" -InactiveTag "[ВКЛЮЧЕНА (Защита ядра)]"
 
+        Write-OptimizerMenuItem -Number "7" -Title "1:1 Raw Mouse Input (отключение акселерации мыши)" `
+            -IsActive $mouseStat.Optimal -ActiveTag "[АКТИВНО ($($mouseStat.Description))]" -InactiveTag "[НЕ АКТИВНО (Акселерация включена)]"
+
+        Write-OptimizerMenuItem -Number "8" -Title "Отклик клавиатуры (минимальная задержка и быстрый повтор)" `
+            -IsActive $kbStat.Optimal -ActiveTag "[АКТИВНО ($($kbStat.Description))]" -InactiveTag "[НЕ АКТИВНО (Дефолт)]"
+
         Write-Host ""
-        Write-Host "  [🚀] [7] Применить ВСЕ твики низкой задержки разом" -ForegroundColor Green
+        Write-Host "  [🚀] [9] Применить ВСЕ твики низкой задержки разом" -ForegroundColor Green
         Write-Host "  [0]  Назад в главное меню" -ForegroundColor Gray
         Write-Host ""
 
@@ -258,11 +422,19 @@ function Show-HardcoreGamingMenu {
                 Set-VbsState -Enable $enableVbs
             }
             "7" {
+                Set-RawMouseInput
+            }
+            "8" {
+                Set-KeyboardResponseTuning
+            }
+            "9" {
                 New-OptimizerRestorePoint -Description "HardcoreLowLatency" | Out-Null
                 Set-GamingMsiMode
                 Set-CpuGamingScheduling
                 Enable-UltimatePerformancePlan
                 Set-SystemResponsivenessGaming
+                Set-RawMouseInput
+                Set-KeyboardResponseTuning
                 Clear-StandbyRamAndWorkingSet | Out-Null
             }
             default {
@@ -479,6 +651,8 @@ function Show-InterfaceMenu {
         $usbStat = Get-UsbPowerSavingStatus
         $maintStat = Get-WindowsAutomaticMaintenanceStatus
         $homeStat = Get-ExplorerHomeVisibilityStatus
+        $galleryStat = Get-ExplorerGalleryStatus
+        $gameModeStat = Get-GameModeStatus
 
         Write-OptimizerMenuItem -Number "1" -Title "Переключить контекстное меню (Классическое Win10 / Новое Win11)" `
             -IsActive $classicStat.Enabled -ActiveTag "[АКТИВНО (Win10 Style)]" -InactiveTag "[НЕ АКТИВНО (Win11 Дефолт)]"
@@ -501,9 +675,15 @@ function Show-InterfaceMenu {
         Write-OptimizerMenuItem -Number "7" -Title "Скрыть/показать раздел 'Главная' (Home) в Проводнике" `
             -IsActive $homeStat.Hidden -ActiveTag "[АКТИВНО (Раздел скрыт)]" -InactiveTag "[НЕ АКТИВНО (Отображается)]"
 
+        Write-OptimizerMenuItem -Number "8" -Title "Скрыть/показать узел 'Галерея' (Gallery) в Проводнике" `
+            -IsActive $galleryStat.Hidden -ActiveTag "[АКТИВНО (Галерея скрыта)]" -InactiveTag "[НЕ АКТИВНО (Отображается)]"
+
+        Write-OptimizerMenuItem -Number "9" -Title "Принудительно включить игровой режим Windows (Game Mode)" `
+            -IsActive $gameModeStat.Enabled -ActiveTag "[АКТИВНО (Game Mode включен)]" -InactiveTag "[НЕ АКТИВНО (Дефолт)]"
+
         Write-Host ""
-        Write-Host "  [🚀] [8] Применить ВСЕ твики интерфейса" -ForegroundColor Green
-        Write-Host "  [0]  Назад в главное меню" -ForegroundColor Gray
+        Write-Host "  [🚀] [10] Применить ВСЕ твики интерфейса" -ForegroundColor Green
+        Write-Host "  [0]   Назад в главное меню" -ForegroundColor Gray
         Write-Host ""
 
         $uiChoice = Read-Host "Шеф, выберите действие"
@@ -532,12 +712,20 @@ function Show-InterfaceMenu {
                 Set-ExplorerHomeVisibility -Hide (-not $homeStat.Hidden)
             }
             "8" {
+                Set-ExplorerGalleryVisibility -Hide (-not $galleryStat.Hidden)
+            }
+            "9" {
+                Set-GameModeForced
+            }
+            "10" {
                 New-OptimizerRestorePoint -Description "SystemUI" | Out-Null
                 Set-FileExplorerTweaks -NoRestart
                 Set-GameDvrOptimized
                 Enable-ClassicWindowsPhotoViewer
                 Disable-UsbPowerSaving
                 Disable-WindowsAutomaticMaintenance
+                Set-ExplorerGalleryVisibility -Hide $true -NoRestart
+                Set-GameModeForced
                 Set-ClassicContextMenu -Enable $true
             }
             default {
@@ -554,54 +742,60 @@ while ($true) {
     Show-Header
 
     Write-Host " ГЛАВНОЕ МЕНЮ ОПТИМИЗАЦИИ:" -ForegroundColor Yellow
-    Write-Host "  [1]   🔎  ПРОВЕРИТЬ ОПТИМИЗАЦИЮ ПК (Аудит 24+ настроек [✓] / [!])" -ForegroundColor Cyan
-    Write-Host "  [2]   🚀  ИГРОВОЙ СУПЕР-БУСТ (MSI, CPU, GPU, MPO, HAGS, Сеть, RAM, UI)" -ForegroundColor Green
-    Write-Host "  [3]   ⚡  ЖЁСТКАЯ ОПТИМИЗАЦИЯ (MSI Mode, CPU Scheduling, RAM Cleaner, VBS)" -ForegroundColor White
-    Write-Host "  [4]   🌐  ИГРОВОЙ СЕТЕВОЙ СТЕК (Nagle Off, RSS, DNS Benchmark & DoH Switcher)" -ForegroundColor White
-    Write-Host "  [5]   🎮  GPU, ДИСПЛЕЙ И КЭШ ШЕЙДЕРОВ (MPO, HAGS, HDCP, Очистка 7+ ГБ кэша)" -ForegroundColor White
-    Write-Host "  [6]   🛡  SMART DEBLOAT (Recall 24H2, Copilot, Bing, Telemetry, Safe UWP)" -ForegroundColor White
-    Write-Host "  [7]   🎨  ИНТЕРФЕЙС И СИСТЕМА (Classic Меню, Проводник, Главная, Пуск, Maintenance)" -ForegroundColor White
-    Write-Host "  [8]   📦  МЕНЕДЖЕР ПРИЛОЖЕНИЙ WINGET (Замена 170+ устаревших веб-ссылок)" -ForegroundColor White
-    Write-Host "  [9]   📊  ДИАГНОСТИКА ЗАДЕРЖЕК (Замер пинга, Live DPC/ISR, таймер Windows)" -ForegroundColor White
-    Write-Host "  [10]  🔄  ОТКАТ И ВОССТАНОВЛЕНИЕ (Восстановление исходных параметров Windows)" -ForegroundColor Yellow
+    Write-Host "  [1]   ⚡  Пресет: Ultra Gaming (Киберспорт / Максимум)" -ForegroundColor Green
+    Write-Host "  [2]   ⚖️  Пресет: Balanced (Средняя / Домашняя)" -ForegroundColor Cyan
+    Write-Host "  [3]   🛡️  Пресет: Light (Поверхностная / Офис & Безопасный)" -ForegroundColor White
+    Write-Host "  [4]   ⚡  CPU, кванты и задержки (MSI Mode, CPU Scheduling, RAM Cleaner, VBS)" -ForegroundColor White
+    Write-Host "  [5]   🌐  Игровой сетевой стек (Nagle Off, RSS, DNS Benchmark & DoH Switcher)" -ForegroundColor White
+    Write-Host "  [6]   🎮  GPU, дисплей и кэш шейдеров (MPO, HAGS, HDCP, Очистка 7+ ГБ кэша)" -ForegroundColor White
+    Write-Host "  [7]   🛡️  Smart Debloat (Recall 24H2, Copilot, Bing, Telemetry, Safe UWP)" -ForegroundColor White
+    Write-Host "  [8]   🎨  Интерфейс и система (Classic Меню, Проводник, Главная, Пуск, Maintenance)" -ForegroundColor White
+    Write-Host "  [9]   📦  Менеджер приложений Winget (Замена 170+ устаревших веб-ссылок)" -ForegroundColor White
+    Write-Host "  [10]  📊  Диагностика и проверка ПК (Аудит 31 настройки, Live DPC/ISR, таймер)" -ForegroundColor White
+    Write-Host "  [11]  🔄  Откат и восстановление (Восстановление исходных параметров Windows)" -ForegroundColor Yellow
     Write-Host "  [0]   🚪  Выход" -ForegroundColor DarkGray
     Write-Host ""
     $mainChoice = Read-Host "Шеф, выберите пункт меню"
 
     switch ($mainChoice) {
         "1" {
-            $checkRes = Show-OptimizationHealthCheck
-            if ($checkRes -eq "ApplySuperBoost") {
-                Invoke-AutoGamingPreset
-            }
+            Invoke-UltraGamingPreset
             Write-Host "`nНажмите Enter для возврата в меню..."; Read-Host | Out-Null
         }
         "2" {
-            Invoke-AutoGamingPreset
+            Invoke-BalancedPreset
             Write-Host "`nНажмите Enter для возврата в меню..."; Read-Host | Out-Null
         }
         "3" {
-            Show-HardcoreGamingMenu
+            Invoke-LightPreset
+            Write-Host "`nНажмите Enter для возврата в меню..."; Read-Host | Out-Null
         }
         "4" {
-            Show-NetworkMenu
+            Show-HardcoreGamingMenu
         }
         "5" {
-            Show-GpuMenu
+            Show-NetworkMenu
         }
         "6" {
-            Show-DebloatMenu
+            Show-GpuMenu
         }
         "7" {
-            Show-InterfaceMenu
+            Show-DebloatMenu
         }
         "8" {
-            Show-AppInstallerMenu
+            Show-InterfaceMenu
         }
         "9" {
-            Show-DiagnosticsDashboard
+            Show-AppInstallerMenu
         }
         "10" {
+            $checkRes = Show-OptimizationHealthCheck
+            if ($checkRes -eq "ApplySuperBoost") {
+                Invoke-UltraGamingPreset
+            }
+            Write-Host "`nНажмите Enter для возврата в меню..."; Read-Host | Out-Null
+        }
+        "11" {
             Invoke-FullRollback
             Write-Host "`nНажмите Enter для возврата в меню..."; Read-Host | Out-Null
         }

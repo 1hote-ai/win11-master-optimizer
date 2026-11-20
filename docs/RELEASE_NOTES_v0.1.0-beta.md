@@ -36,7 +36,12 @@ Welcome to the first public beta of **Windows 11 Master Optimizer**! This releas
 - `Start.bat` & `Start-Optimizer.bat`: Multi-entry launchers supporting UTF-8 (`chcp 65001`), UAC automatic elevation, and relative path resolution.
 
 ### 3. Automated Test Suite
-- `Test-Win11Optimizer.ps1`: Automated test harness running 52 assertions verifying module loading, snapshot creation, exact state capture, security validation, granular rollback integrity, hardware enumeration, and dry-run execution with Exit Code 0.
+- `Test-Win11Optimizer.ps1`: Automated test harness running 63 assertions verifying module loading, snapshot creation, exact state capture, strict allowlist security validation, granular rollback integrity, hardware enumeration, and dry-run execution of all 3 optimization presets with Exit Code 0.
+
+### 4. 3-Tier Optimization Presets
+- **Tier 1 (Light):** Zero breakage office & privacy profile, keeping Print Spooler, Bluetooth, Network Discovery, and USB power savings strictly intact.
+- **Tier 2 (Balanced):** Smooth daily driver profile with GameDVR FSE, Game Mode, DirectX Windowed optimizations, RSS, TCP Auto-Tuning, UWP Debloat, and shader cache cleanup.
+- **Tier 3 (Ultra Gaming):** Esports low-latency profile with 1:1 Raw Mouse Input, Keyboard Response Tuning, Gallery removal, MSI Mode (High Priority), CPU quantums 38, Power Throttling off, Standby RAM purge, Nagle killer on all adapters, and **Laptop Guard** (WMI battery detection preventing DC battery drain).
 
 ---
 
@@ -63,7 +68,7 @@ Release archives built via `tools/Build-ReleasePackage.ps1` include automated SH
 
 | Asset Name | Size | SHA-256 Checksum |
 | :--- | :--- | :--- |
-| `win11-master-optimizer-v0.1.0-beta.zip` | 192.48 KB | `B29258CF09EF37677AE009D633F44586601C1604A039408E76DDC47D53616F0E` |
+| `win11-master-optimizer-v0.1.0-beta.zip` | 202.60 KB | `FDA7BF7FB7EA6B42BDCF73E919B0213950DC1AEF68A21BBC6609BD7282532BD4` |
 
 *To verify checksum in PowerShell:*
 ```powershell

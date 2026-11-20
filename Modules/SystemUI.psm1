@@ -496,6 +496,10 @@ function Restore-SystemUISettings {
     # Восстановление раздела Главная
     Set-ExplorerHomeVisibility -Hide $false -NoRestart -ErrorAction SilentlyContinue
 
+    # Откат видимости узла Галереи и параметров Game Mode
+    Restore-ExplorerGalleryVisibility -ErrorAction SilentlyContinue
+    Restore-GameModeSettings -ErrorAction SilentlyContinue
+
     # Снятие блокировок меню Пуск и обслуживания, если снимок отсутствовал
     Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer" -Name "HideRecommendedSection" -ErrorAction SilentlyContinue
     Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\PolicyManager\current\device\Start" -Name "HideRecommendedSection" -ErrorAction SilentlyContinue
@@ -619,6 +623,184 @@ function Get-ExplorerHomeVisibilityStatus {
     }
 }
 
+function Set-ExplorerGalleryVisibility {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)]
+        $Hide = $true,
+        [switch]$DryRun = $false,
+        [switch]$NoRestart = $false
+    )
+
+    $shouldHide = if ($Hide -is [bool]) { $Hide } else { [bool]::Parse($Hide.ToString()) }
+    $actionText = if ($shouldHide) { "Скрытие узла 'Галерея' (Gallery)" } else { "Отображение узла 'Галерея' (Gallery)" }
+    Write-Host "`n[Explorer Gallery] $actionText в панели навигации Проводника..." -ForegroundColor Cyan
+
+    $folderGuid = "{e88865ea-0e1c-4e20-9aa6-ed353b747f69}"
+    $clsidGuid  = "{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}"
+    
+    $hklmPropBag = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FolderDescriptions\$folderGuid\PropertyBag"
+    $hkcuPropBag = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FolderDescriptions\$folderGuid\PropertyBag"
+    $clsidKey    = "HKCU:\Software\Classes\CLSID\$clsidGuid"
+
+    if ($DryRun) {
+        $val = if ($shouldHide) { "Hide" } else { "Show" }
+        Write-Host "  [DRY-RUN] Будет установлено ThisPCPolicy = '$val' в FolderDescriptions $folderGuid (HKLM/HKCU)" -ForegroundColor DarkGray
+        Write-Host "  [DRY-RUN] Будет установлено System.IsPinnedToNameSpaceTree = $(if ($shouldHide) { 0 } else { 1 }) в $clsidKey" -ForegroundColor DarkGray
+        return
+    }
+
+    $targets = @(
+        @{ Path = $hklmPropBag; Name = "ThisPCPolicy" },
+        @{ Path = $hkcuPropBag; Name = "ThisPCPolicy" },
+        @{ Path = $clsidKey;    Name = "System.IsPinnedToNameSpaceTree" }
+    )
+    Save-RegistrySnapshot -Category "ExplorerGallery" -RegistryTargets $targets -DryRun:$DryRun | Out-Null
+
+    try {
+        if ($shouldHide) {
+            if (-not (Test-Path $hklmPropBag)) { New-Item -Path $hklmPropBag -Force | Out-Null }
+            Set-ItemProperty -Path $hklmPropBag -Name "ThisPCPolicy" -Value "Hide" -Type String -Force
+
+            if (-not (Test-Path $hkcuPropBag)) { New-Item -Path $hkcuPropBag -Force | Out-Null }
+            Set-ItemProperty -Path $hkcuPropBag -Name "ThisPCPolicy" -Value "Hide" -Type String -Force
+
+            if (-not (Test-Path $clsidKey)) { New-Item -Path $clsidKey -Force | Out-Null }
+            Set-ItemProperty -Path $clsidKey -Name "System.IsPinnedToNameSpaceTree" -Value 0 -Type DWord -Force
+
+            Write-Host "  [OK] Узел 'Галерея' успешно скрыт из Проводника (устранена фоновая загрузка каталога фото)." -ForegroundColor Green
+        } else {
+            if (Test-Path $hklmPropBag) {
+                Set-ItemProperty -Path $hklmPropBag -Name "ThisPCPolicy" -Value "Show" -Type String -Force
+            }
+            if (Test-Path $hkcuPropBag) {
+                Set-ItemProperty -Path $hkcuPropBag -Name "ThisPCPolicy" -Value "Show" -Type String -Force
+            }
+            if (Test-Path $clsidKey) {
+                Set-ItemProperty -Path $clsidKey -Name "System.IsPinnedToNameSpaceTree" -Value 1 -Type DWord -Force
+            }
+            Write-Host "  [OK] Узел 'Галерея' возвращен в Проводник." -ForegroundColor Green
+        }
+
+        if (-not $NoRestart) {
+            Restart-ExplorerGraceful
+        }
+    } catch {
+        Write-Host "  [ERROR] Ошибка изменения видимости узла 'Галерея': $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
+function Restore-ExplorerGalleryVisibility {
+    [CmdletBinding()]
+    param()
+
+    Write-Host "[Explorer Gallery] Откат видимости узла 'Галерея'..." -ForegroundColor Yellow
+    $restored = Restore-RegistrySnapshot -Category "ExplorerGallery"
+    if (-not $restored.Success) {
+        $folderGuid = "{e88865ea-0e1c-4e20-9aa6-ed353b747f69}"
+        $clsidGuid  = "{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}"
+        $hklmPropBag = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FolderDescriptions\$folderGuid\PropertyBag"
+        $hkcuPropBag = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FolderDescriptions\$folderGuid\PropertyBag"
+        $clsidKey    = "HKCU:\Software\Classes\CLSID\$clsidGuid"
+
+        if (Test-Path $hklmPropBag) { Remove-ItemProperty -Path $hklmPropBag -Name "ThisPCPolicy" -ErrorAction SilentlyContinue }
+        if (Test-Path $hkcuPropBag) { Remove-ItemProperty -Path $hkcuPropBag -Name "ThisPCPolicy" -ErrorAction SilentlyContinue }
+        if (Test-Path $clsidKey) { Remove-ItemProperty -Path $clsidKey -Name "System.IsPinnedToNameSpaceTree" -ErrorAction SilentlyContinue }
+        Write-Host "[Explorer Gallery] Параметры Галереи удалены (дефолт Windows)." -ForegroundColor Green
+    }
+}
+
+function Get-ExplorerGalleryStatus {
+    [CmdletBinding()]
+    param()
+
+    $folderGuid = "{e88865ea-0e1c-4e20-9aa6-ed353b747f69}"
+    $clsidGuid  = "{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}"
+    $hklmPropBag = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FolderDescriptions\$folderGuid\PropertyBag"
+    $clsidKey    = "HKCU:\Software\Classes\CLSID\$clsidGuid"
+
+    $isHidden = $false
+    try {
+        $p1 = Get-ItemProperty -Path $hklmPropBag -ErrorAction SilentlyContinue
+        $p2 = Get-ItemProperty -Path $clsidKey -ErrorAction SilentlyContinue
+        if (($p1 -and $p1.PSObject.Properties['ThisPCPolicy'] -and $p1.ThisPCPolicy -eq "Hide") -or `
+            ($p2 -and $p2.PSObject.Properties['System.IsPinnedToNameSpaceTree'] -and $p2.'System.IsPinnedToNameSpaceTree' -eq 0)) {
+            $isHidden = $true
+        }
+    } catch {}
+
+    return [PSCustomObject]@{
+        Hidden      = $isHidden
+        Optimal     = $isHidden
+        Description = if ($isHidden) { "Скрыта (Галерея отключена, без оверхеда фото)" } else { "Отображается (Дефолт)" }
+    }
+}
+
+function Set-GameModeForced {
+    [CmdletBinding()]
+    param(
+        [switch]$DryRun = $false
+    )
+
+    Write-Host "`n[Game Mode] Принудительная активация игрового режима Windows 11 (Game Mode)..." -ForegroundColor Cyan
+
+    $gameBarKey = "HKCU:\Software\Microsoft\GameBar"
+
+    if ($DryRun) {
+        Write-Host "  [DRY-RUN] Будет установлено: AutoGameModeEnabled = 1, AllowAutoGameMode = 1 в $gameBarKey" -ForegroundColor DarkGray
+        return
+    }
+
+    $targets = @(
+        @{ Path = $gameBarKey; Name = "AutoGameModeEnabled" },
+        @{ Path = $gameBarKey; Name = "AllowAutoGameMode" }
+    )
+    Save-RegistrySnapshot -Category "GameMode" -RegistryTargets $targets -DryRun:$DryRun | Out-Null
+
+    try {
+        if (-not (Test-Path $gameBarKey)) { New-Item -Path $gameBarKey -Force | Out-Null }
+        Set-ItemProperty -Path $gameBarKey -Name "AutoGameModeEnabled" -Value 1 -Type DWord -Force
+        Set-ItemProperty -Path $gameBarKey -Name "AllowAutoGameMode" -Value 1 -Type DWord -Force
+        Write-Host "  [OK] Game Mode принудительно включен (AutoGameModeEnabled = 1). Игровым процессам гарантирован приоритет планировщика." -ForegroundColor Green
+    } catch {
+        Write-Host "  [ERROR] Ошибка включения Game Mode: $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
+function Restore-GameModeSettings {
+    [CmdletBinding()]
+    param()
+
+    Write-Host "[Game Mode] Откат настроек Game Mode..." -ForegroundColor Yellow
+    $restored = Restore-RegistrySnapshot -Category "GameMode"
+    if (-not $restored.Success) {
+        $gameBarKey = "HKCU:\Software\Microsoft\GameBar"
+        if (Test-Path $gameBarKey) {
+            Set-ItemProperty -Path $gameBarKey -Name "AutoGameModeEnabled" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Get-GameModeStatus {
+    [CmdletBinding()]
+    param()
+
+    $gameBarKey = "HKCU:\Software\Microsoft\GameBar"
+    $isEnabled = $false
+    try {
+        $p = Get-ItemProperty -Path $gameBarKey -ErrorAction SilentlyContinue
+        if ($p -and $p.PSObject.Properties['AutoGameModeEnabled'] -and $p.AutoGameModeEnabled -eq 1) {
+            $isEnabled = $true
+        }
+    } catch {}
+
+    return [PSCustomObject]@{
+        Enabled     = $isEnabled
+        Optimal     = $isEnabled
+        Description = if ($isEnabled) { "Принудительно включен (Game Mode активен)" } else { "Отключен / Не настроен" }
+    }
+}
+
 Export-ModuleMember -Function Set-ClassicContextMenu, Set-FileExplorerTweaks, `
                              Set-GameDvrOptimized, Enable-ClassicWindowsPhotoViewer, `
                              Disable-UsbPowerSaving, Disable-WindowsAutomaticMaintenance, `
@@ -627,4 +809,6 @@ Export-ModuleMember -Function Set-ClassicContextMenu, Set-FileExplorerTweaks, `
                              Get-UsbPowerSavingStatus, Get-ClassicContextMenuStatus, `
                              Get-FileExplorerTweaksStatus, Get-GameDvrStatus, `
                              Get-ClassicWindowsPhotoViewerStatus, Get-WindowsAutomaticMaintenanceStatus, `
-                             Get-ExplorerHomeVisibilityStatus
+                             Get-ExplorerHomeVisibilityStatus, `
+                             Set-ExplorerGalleryVisibility, Restore-ExplorerGalleryVisibility, Get-ExplorerGalleryStatus, `
+                             Set-GameModeForced, Restore-GameModeSettings, Get-GameModeStatus

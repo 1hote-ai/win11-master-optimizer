@@ -766,7 +766,41 @@ function Get-GamingDnsStatus {
     }
 }
 
-Export-ModuleMember -Function Get-ActiveNetworkInterfaceGuids, Set-GamingNetworkStack, Restore-GamingNetworkStack, `
+function Set-BalancedNetworkStack {
+    [CmdletBinding()]
+    param(
+        [switch]$DryRun = $false
+    )
+
+    Write-Host "`n[Network Optimizer] Настройка сбалансированного сетевого стека (RSS + Auto-Tuning)..." -ForegroundColor Cyan
+
+    if ($DryRun) {
+        Write-Host "  [DRY-RUN] Будет включен RSS (Receive Side Scaling) и TCP Window Auto-Tuning установлен в normal." -ForegroundColor DarkGray
+        Write-Host "  [DRY-RUN] Алгоритм Нейгла остается стандартным (безопасно для домашних сетей и офисных приложений)." -ForegroundColor DarkGray
+        return
+    }
+
+    try {
+        $origTcpState = Get-NetshTcpGlobalState
+        if ($origTcpState -and $origTcpState.Count -gt 0) {
+            Save-StateSnapshot -Category "NetshTcp" -StateData $origTcpState -DryRun:$DryRun | Out-Null
+        }
+    } catch {
+        Write-Verbose "Предупреждение при сохранении снимка netsh: $_"
+    }
+
+    try {
+        netsh int tcp set global rss=enabled 2>&1 | Out-Null
+        Write-Host "  [OK] RSS (Receive Side Scaling) включен" -ForegroundColor Green
+
+        netsh int tcp set global autotuninglevel=normal 2>&1 | Out-Null
+        Write-Host "  [OK] TCP Window Auto-Tuning установлен в Normal" -ForegroundColor Green
+    } catch {
+        Write-Host "  [WARNING] Ошибка применения netsh команд: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
+Export-ModuleMember -Function Get-ActiveNetworkInterfaceGuids, Set-GamingNetworkStack, Set-BalancedNetworkStack, Restore-GamingNetworkStack, `
                              Get-NetshTcpGlobalState, Get-NetworkPowerSavingStatus, Get-PrimaryActiveNetworkInterface, `
                              Test-GamingDnsBenchmark, Set-GamingDns, Reset-GamingDns, Restore-GamingDns, Show-DnsBenchmarkAndSwitcherMenu, `
                              Get-NagleStatus, Get-NetworkGamingStackStatus, Get-GamingDnsStatus

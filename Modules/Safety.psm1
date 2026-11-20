@@ -439,7 +439,28 @@ function Test-RegistrySnapshotEntrySecurity {
             Pattern = '^HKLM:\\SOFTWARE\\Microsoft\\Windows Photo Viewer\\Capabilities\\FileAssociations$'
             Names   = @('.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.gif', '.ico')
         },
-        # 7. Sandbox for automated tests
+        # 7. Low-Latency Input & Competitive UI
+        @{
+            Pattern = '^HKCU:\\Control Panel\\Mouse$'
+            Names   = @('MouseSpeed', 'MouseThreshold1', 'MouseThreshold2')
+        },
+        @{
+            Pattern = '^HKCU:\\Control Panel\\Keyboard$'
+            Names   = @('KeyboardDelay', 'KeyboardSpeed')
+        },
+        @{
+            Pattern = '^HKCU:\\Control Panel\\Accessibility\\Keyboard Response$'
+            Names   = @('AutoRepeatDelay', 'AutoRepeatRate', 'DelayBeforeAcceptance', 'Flags', 'BounceTime')
+        },
+        @{
+            Pattern = '^HKCU:\\Software\\Microsoft\\GameBar$'
+            Names   = @('AutoGameModeEnabled', 'AllowAutoGameMode', 'GamepadDoublePressIntervalMs')
+        },
+        @{
+            Pattern = '^(HKLM|HKCU):\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FolderDescriptions\\\{e88865ea-0e1c-4e20-9aa6-ed353b747f69\}\\PropertyBag$'
+            Names   = @('ThisPCPolicy')
+        },
+        # 8. Sandbox for automated tests
         @{
             Pattern = '^HKCU:\\Software\\Win11Opt.*$'
             Names   = @('*')

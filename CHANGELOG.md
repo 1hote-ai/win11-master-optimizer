@@ -9,6 +9,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [v0.1.0-beta] - 2026-11-20
 
 ### Added
+- **3-Tier Preset Architecture & Competitive Features:**
+  - **Tier 1 (Light):** Zero breakage office & privacy profile, keeping Print Spooler, Bluetooth, Network Discovery, and USB power savings strictly intact.
+  - **Tier 2 (Balanced):** Smooth daily driver profile with GameDVR FSE, Game Mode, DirectX Windowed optimizations, RSS, TCP Auto-Tuning, UWP Debloat, and shader cache cleanup.
+  - **Tier 3 (Ultra Gaming):** Esports low-latency profile with 1:1 Raw Mouse Input, Keyboard Response Tuning, Gallery removal, MSI Mode (High Priority), CPU quantums 38, Power Throttling off, Standby RAM purge, Nagle killer on all adapters, and **Laptop Guard**.
+  - **1:1 Raw Mouse Input:** Complete Windows pointer acceleration disable (`HKCU:\Control Panel\Mouse`: `MouseSpeed = 0`, `MouseThreshold1 = 0`, `MouseThreshold2 = 0`) with native Win32 `SystemParametersInfo(SPI_SETMOUSE)`.
+  - **Keyboard Response Tuning:** Reduced repeat delay and maximized repeat rate (`HKCU:\Control Panel\Keyboard`: `KeyboardDelay = 0`, `KeyboardSpeed = 31`; `HKCU:\Control Panel\Accessibility\Keyboard Response`: `AutoRepeatDelay = 250`, `AutoRepeatRate = 31`).
+  - **Explorer Gallery Removal:** Heavy cloud photo gallery node removal from File Explorer navigation pane (`HKCU/HKLM FolderDescriptions\{e88865ea-0e1c-4e20-9aa6-ed353b747f69}\PropertyBag\ThisPCPolicy = Hide`).
+  - **Game Mode Forced On:** Dedicated Game Mode activation (`HKCU:\Software\Microsoft\GameBar`: `AutoGameModeEnabled = 1`).
+  - **Laptop Guard:** Intelligent WMI battery detection (`Get-CimInstance Win32_Battery`) preventing aggressive battery drain on DC power while maximizing performance on AC.
+  - **Expanded Testing & Audit:** Test harness expanded to 63 automated assertions; System Health Audit expanded to 31 check points.
 - **Core Architecture:**
   - Complete 8-module architecture separating safety, latency, network, GPU, debloat, UI, diagnostics, and app installations.
   - Interactive Text User Interface (TUI) with real-time status indicators (`[✓] Optimal` / `[ ] Action Required`).

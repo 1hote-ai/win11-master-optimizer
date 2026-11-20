@@ -602,10 +602,10 @@ Assert-Test "Diagnostics: Health-Check Audit Recommendations & FixMenu validity"
     $hasRecs = @($audit | Where-Object { [string]::IsNullOrWhiteSpace($_.Recommendation) -or [string]::IsNullOrWhiteSpace($_.FixMenu) }).Count -eq 0
     $hasFunc = (Get-Command Show-OptimizationHealthCheck -ErrorAction SilentlyContinue) -ne $null
     
-    # Проверка, что все FixMenu ссылаются на реальные пункты главного меню ([2]-[7])
+    # Проверка, что все FixMenu ссылаются на реальные пункты главного меню ([1]-[8])
     $allFixMenusValid = $true
     foreach ($item in $audit) {
-        if ($item.FixMenu -notmatch 'Главное меню -> Пункт \[(2|3|4|5|6|7)\]') {
+        if ($item.FixMenu -notmatch 'Главное меню -> Пункт \[(1|2|3|4|5|6|7|8)\]') {
             $allFixMenusValid = $false
             Write-Host "`n  [FAIL Detail] Некорректный FixMenu у '$($item.Setting)': $($item.FixMenu)" -ForegroundColor Red
         }
@@ -700,8 +700,81 @@ Assert-Test "AppInstaller: Catalog and Winget check" {
     $catalog.Count -ge 20 -and $wStatus.Available -eq $true
 }
 
-# 9. Full AutoGamingPreset Dry-Run Test
-Assert-Test "Preset: AutoGamingPreset dry-run completes without error" {
+# 9. 3-Tier Presets & Competitive Features Tests
+Assert-Test "GamingLatency: Test-IsLaptopDevice function works" {
+    $isLaptop = Test-IsLaptopDevice
+    $isLaptop -is [bool]
+}
+
+Assert-Test "GamingLatency: Raw Mouse Input Dry-Run and Status" {
+    Set-RawMouseInput -DryRun
+    $mStat = Get-RawMouseInputStatus
+    $null -ne $mStat.Optimal -and $null -ne $mStat.Enabled -and -not [string]::IsNullOrWhiteSpace($mStat.Description)
+}
+
+Assert-Test "GamingLatency: Keyboard Response Tuning Dry-Run and Status" {
+    Set-KeyboardResponseTuning -DryRun
+    $kbStat = Get-KeyboardResponseStatus
+    $null -ne $kbStat.Optimal -and $null -ne $kbStat.Enabled -and -not [string]::IsNullOrWhiteSpace($kbStat.Description)
+}
+
+Assert-Test "SystemUI: Explorer Gallery Visibility Dry-Run and Status" {
+    Set-ExplorerGalleryVisibility -Hide $true -DryRun -NoRestart
+    Set-ExplorerGalleryVisibility -Hide $false -DryRun -NoRestart
+    $galStat = Get-ExplorerGalleryStatus
+    $null -ne $galStat.Hidden -and $null -ne $galStat.Optimal -and -not [string]::IsNullOrWhiteSpace($galStat.Description)
+}
+
+Assert-Test "SystemUI: Game Mode Forced Dry-Run and Status" {
+    Set-GameModeForced -DryRun
+    $gmStat = Get-GameModeStatus
+    $null -ne $gmStat.Enabled -and $null -ne $gmStat.Optimal -and -not [string]::IsNullOrWhiteSpace($gmStat.Description)
+}
+
+Assert-Test "NetworkGaming: Balanced Network Stack Dry-Run" {
+    Set-BalancedNetworkStack -DryRun
+    $true
+}
+
+Assert-Test "Safety: Low-latency and competitive UI allowlist rules in Test-RegistrySnapshotEntrySecurity" {
+    $mouseCheck = Test-RegistrySnapshotEntrySecurity -Entry @{
+        Path = "HKCU:\Control Panel\Mouse"; Name = "MouseSpeed"; Type = "String"; KeyExists = $true; ValueExists = $true
+    }
+    $kbCheck = Test-RegistrySnapshotEntrySecurity -Entry @{
+        Path = "HKCU:\Control Panel\Keyboard"; Name = "KeyboardDelay"; Type = "String"; KeyExists = $true; ValueExists = $true
+    }
+    $accCheck = Test-RegistrySnapshotEntrySecurity -Entry @{
+        Path = "HKCU:\Control Panel\Accessibility\Keyboard Response"; Name = "AutoRepeatDelay"; Type = "String"; KeyExists = $true; ValueExists = $true
+    }
+    $gbCheck = Test-RegistrySnapshotEntrySecurity -Entry @{
+        Path = "HKCU:\Software\Microsoft\GameBar"; Name = "AutoGameModeEnabled"; Type = "DWord"; KeyExists = $true; ValueExists = $true
+    }
+    $galCheck = Test-RegistrySnapshotEntrySecurity -Entry @{
+        Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FolderDescriptions\{e88865ea-0e1c-4e20-9aa6-ed353b747f69}\PropertyBag"; Name = "ThisPCPolicy"; Type = "String"; KeyExists = $true; ValueExists = $true
+    }
+    $rejectCheck = Test-RegistrySnapshotEntrySecurity -Entry @{
+        Path = "HKCU:\Control Panel\Mouse"; Name = "MaliciousProperty"; Type = "String"; KeyExists = $true; ValueExists = $true
+    }
+
+    $mouseCheck.Valid -and $kbCheck.Valid -and $accCheck.Valid -and $gbCheck.Valid -and $galCheck.Valid -and (-not $rejectCheck.Valid)
+}
+
+Assert-Test "Preset: Light preset dry-run completes without error" {
+    . (Join-Path $ScriptDir "Win11Optimizer.ps1") -Mode Light -DryRun -NoRestorePoint
+    $true
+}
+
+Assert-Test "Preset: Balanced preset dry-run completes without error" {
+    . (Join-Path $ScriptDir "Win11Optimizer.ps1") -Mode Balanced -DryRun -NoRestorePoint
+    $true
+}
+
+Assert-Test "Preset: UltraGaming preset dry-run completes without error" {
+    . (Join-Path $ScriptDir "Win11Optimizer.ps1") -Mode UltraGaming -DryRun -NoRestorePoint
+    $true
+}
+
+Assert-Test "Preset: Backward compatible AutoGaming mode dry-run completes without error" {
     . (Join-Path $ScriptDir "Win11Optimizer.ps1") -Mode AutoGaming -DryRun -NoRestorePoint
     $true
 }
@@ -755,6 +828,15 @@ Assert-Test "Status Queries: Debloat status functions (Recall, Copilot, Bing, Wi
 
     ($null -ne $recall.Disabled) -and ($null -ne $copilot.Disabled) -and ($null -ne $bing.Disabled) -and `
     ($null -ne $widgets.Disabled) -and ($null -ne $telem.Disabled) -and ($null -ne $bloat.Clean)
+}
+
+Assert-Test "Status Queries: Competitive input & UI status functions (Mouse, Keyboard, Gallery, Game Mode)" {
+    $mouse = Get-RawMouseInputStatus
+    $kb = Get-KeyboardResponseStatus
+    $gal = Get-ExplorerGalleryStatus
+    $gm = Get-GameModeStatus
+
+    ($null -ne $mouse.Optimal) -and ($null -ne $kb.Optimal) -and ($null -ne $gal.Hidden) -and ($null -ne $gm.Enabled)
 }
 
 Assert-Test "Submenu Architecture: Interactive optimization submenu functions exist" {

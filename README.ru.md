@@ -10,7 +10,7 @@
 [![OS - Windows 11 24H2 Ready](https://img.shields.io/badge/OS-Windows%2011%20(22H2%20--%2024H2)-00D2FF?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/1hote-ai/win11-master-optimizer)
 [![Engine - PowerShell & C# P/Invoke](https://img.shields.io/badge/Engine-PowerShell%20%2B%20NT--Kernel%20P%2FInvoke-10B981?style=for-the-badge&logo=powershell&logoColor=white)](https://github.com/1hote-ai/win11-master-optimizer)
 [![Safety - 2-Tier Rollback Engine](https://img.shields.io/badge/Safety-2--Уровневый%20Откат-6366F1?style=for-the-badge&logo=shield&logoColor=white)](docs/SAFETY_AUDIT.md)
-[![Tests - 52/52 Passing](https://img.shields.io/badge/Tests-52%2F52%20Пройдено-34D399?style=for-the-badge&logo=checkmarx&logoColor=white)](Test-Win11Optimizer.ps1)
+[![Tests - 63/63 Passing](https://img.shields.io/badge/Tests-63%2F63%20Пройдено-34D399?style=for-the-badge&logo=checkmarx&logoColor=white)](Test-Win11Optimizer.ps1)
 [![Лицензия - MIT](https://img.shields.io/badge/Лицензия-MIT-3B82F6?style=for-the-badge&logo=open-source-initiative&logoColor=white)](LICENSE)
 
 [English](README.md) • [Русский](README.ru.md) • [Паспорт Продукта](docs/PRODUCT_PASSPORT.md) • [Аудит Безопасности](docs/SAFETY_AUDIT.md) • [GitHub Topics & SEO](docs/GITHUB_TOPICS.md) • [Сообщить об ошибке](https://github.com/1hote-ai/win11-master-optimizer/issues/new/choose)
@@ -37,16 +37,16 @@
 ```
 win11-master-optimizer/
 ├── Win11Optimizer.ps1             # Главный движок (TUI-меню и CLI-режимы)
-├── Test-Win11Optimizer.ps1        # Автоматический тестовый набор (52 проверки)
+├── Test-Win11Optimizer.ps1        # Автоматический тестовый набор (63 проверки)
 ├── Start.bat / Start-Optimizer.bat # Надежные лаунчеры с авто-UAC (UTF-8)
 ├── Modules/
-│   ├── Safety.psm1                # Точки восстановления, JSON-снимки и откат
-│   ├── GamingLatency.psm1         # MSI Mode, кванты CPU, очистка RAM, тумблер VBS
+│   ├── Safety.psm1                # Точки восстановления, JSON-снимки и строгий allowlist
+│   ├── GamingLatency.psm1         # MSI Mode, кванты CPU, очистка RAM, 1:1 Raw Mouse, отклик клавиатуры, Laptop Guard
 │   ├── NetworkGaming.psm1         # Алгоритм Нейгла, RSS, TCP стек, DNS Benchmark и DoH
 │   ├── GpuDisplay.psm1            # Отключение MPO, HAGS, DirectX, HDCP Killer, очистка кэша
 │   ├── Debloat.psm1               # Отключение Recall 24H2, Copilot, Bing, телеметрии, Safe UWP
-│   ├── SystemUI.psm1              # Классическое контекстное меню, Проводник, USB, Maintenance
-│   ├── Diagnostics.psm1           # Аудит 26 настроек, Win32 таймер, замер DPC/ISR, пинг
+│   ├── SystemUI.psm1              # Классическое меню, Проводник, скрытие Галереи, Game Mode, USB Power
+│   ├── Diagnostics.psm1           # Аудит 31 настройки, Win32 таймер, замер DPC/ISR, пинг
 │   └── AppInstaller.psm1          # Тихий установщик Winget (25 проверенных программ)
 ├── Backups/                       # JSON-снимки реестра перед каждым изменением
 └── Reports/                       # Сохраненные отчеты диагностики и аудита
@@ -135,6 +135,26 @@ Windows 11 Master Optimizer оснащен как интерактивным т�
 
 ---
 
+## ⚡ 3-Уровневая Архитектура Пресетов
+
+В оптимизатор встроена гибкая система из 3 специализированных профилей оптимизации:
+
+1. **🛡️ Пресет 1: Light (Поверхностная / Офис & Безопасный):**
+   - **Фокус:** Конфиденциальность, чистый интерфейс, полная гарантия сохранности периферии и офисных служб.
+   - **Действия:** Отключение телеметрии и фонового трекинга (DiagTrack, dmwappushservice), поиск Bing в Пуске отключен, Copilot отключен, виджеты/лента новостей отключены, Recall отключен, оптимизация Проводника (расширения файлов, компактный вид, открытие 'Этот компьютер', скрытие рекомендаций).
+   - **Строго Сохранено:** Диспетчер печати (`Spooler`), Bluetooth (`bthserv`), сетевое окружение и общий доступ, Windows Update, BITS и стандартный профиль питания USB (полная безопасность для офисных ПК и ноутбуков).
+
+2. **⚖️ Пресет 2: Balanced (Средняя / Домашняя):**
+   - **Фокус:** Плавный гейминг и очистка мусора, безопасная для повседневных ПК и ноутбуков.
+   - **Действия:** Все твики из Light + отключение фоновой записи GameDVR, активация честного режима FSE, принудительный Game Mode, оптимизация оконных игр DirectX (`AutoPlayMode=1;`), включение RSS (Receive Side Scaling), TCP Window Auto-Tuning normal, безопасный UWP Debloat (строгий вайтлист Store, Xbox, Calc, Notepad, Paint, Security), очистка кэша шейдеров DirectX/OpenGL и временных файлов.
+   - **Сохранено:** Без экстремальных приоритетов прерываний и без схем питания, разряжающих батарею ноутбука.
+
+3. **⚡ Пресет 3: Ultra Gaming (Киберспорт / Максимум):**
+   - **Фокус:** Экстремальное снижение инпут-лага, минимизация задержек DPC/ISR и сглаживание 1% low FPS для киберспорта.
+   - **Действия:** Все твики из Balanced + MSI Mode (High Priority для GPU, Сети и Звука), квантование CPU 38 (`0x26`), отключение Power Throttling, очистка Standby RAM кэша через вызов ядра NT (`NtSetSystemInformation`), схема питания Ultimate Performance с интеллектуальной защитой **Laptop Guard** (определение батареи через WMI с сохранением энергосбережения на DC), включение HAGS, отключение MPO (`OverlayTestMode=5`), блокировка автозамены видеодрайвера, уничтожение HDCP DRM NVIDIA, отключение алгоритма Нейгла на всех адаптерах, отключение спящего режима USB, 1:1 Raw Mouse Input (`MouseSpeed=0, Threshold=0`), отклик клавиатуры (`KeyboardDelay=0, Speed=31`) и скрытие тяжелого узла Галереи Проводника (`ThisPCPolicy=Hide`).
+
+---
+
 ## 🎮 Как запускать
 
 ### Системные требования
@@ -147,14 +167,23 @@ Windows 11 Master Optimizer оснащен как интерактивным т�
 
 ### Вариант 2: Запуск из консоли PowerShell (CLI Режимы)
 ```powershell
-# Запуск быстрой проверки оптимизации компьютера (26 параметров)
-powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode HealthCheck
+# Киберспортивный пресет Ultra Gaming (MSI, кванты 38, MPO, HAGS, Нейгл, 1:1 Raw Input)
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode UltraGaming
 
-# Полный игровой супер-буст (Точка восстановления -> Latency -> RAM -> GPU -> Сеть -> UI)
+# Сбалансированный пресет Balanced (Безопасно для ноутбуков и домашних ПК)
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode Balanced
+
+# Легкий пресет Light (Приватность, чистый UI, zero-breakage периферии)
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode Light
+
+# Обратно-совместимый алиас к UltraGaming
 powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode AutoGaming
 
 # Режим Dry-Run: предварительный просмотр действий без внесения изменений
-powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode AutoGaming -DryRun
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode UltraGaming -DryRun
+
+# Запуск аудита системы (31 параметр)
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode HealthCheck
 
 # Быстрая очистка Standby RAM кэша через NT-ядро
 powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode RamClean
@@ -175,17 +204,33 @@ powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode Rollback
 
 1. **Уровень 1 — Точка восстановления Windows:** Перед применением комплексных пресетов автоматически создается точка восстановления `Checkpoint-Computer` с обходом 24-часового лимита Windows.
 2. **Уровень 2 — Покатегорийные JSON-снимки:** До любого изменения ключей реестра создается снимок в `Backups/Backup_<Категория>_<Дата>.json`.
-3. **Откат в 1 клик:** В меню выберите пункт `[10] ОТКАТ И ВОССТАНОВЛЕНИЕ`, либо запустите `Win11Optimizer.ps1 -Mode Rollback` и выберите пункт `[7] Полный сброс к заводским дефолтам Windows 11`.
+3. **Откат в 1 клик:** В меню выберите пункт `[11] ОТКАТ И ВОССТАНОВЛЕНИЕ`, либо запустите `Win11Optimizer.ps1 -Mode Rollback` и выберите пункт `[8] Полный сброс к заводским дефолтам Windows 11`.
 
 ---
 
 ## 🧪 Автоматическое тестирование
 
-Для запуска набора автоматических тестов (52 проверки):
+Для запуска набора автоматических тестов (63 проверки):
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\Test-Win11Optimizer.ps1
 ```
 *(Все тесты завершаются со статусом `[PASS]` и Exit Code 0).*
+
+```
+========================================================
+     RUNNING WIN11 OPTIMIZER SMOKE & INTEGRITY TESTS    
+========================================================
+  Testing [Module: Safety.psm1 loads]... [PASS]
+  Testing [Safety: Snapshot & Rollback integrity test]... [PASS]
+  Testing [Hardware: GPU, Network and Sound cards detected]... [PASS]
+  Testing [Diagnostics: Comprehensive optimization audit (31 settings)]... [PASS]
+  Testing [Preset: Light preset dry-run completes without error]... [PASS]
+  Testing [Preset: Balanced preset dry-run completes without error]... [PASS]
+  Testing [Preset: UltraGaming preset dry-run completes without error]... [PASS]
+========================================================
+  TEST RESULTS: Passed: 63 | Failed: 0
+========================================================
+```
 
 ---
 
@@ -222,7 +267,8 @@ powershell -ExecutionPolicy Bypass -File .\Test-Win11Optimizer.ps1
 - [x] Полная совместимость с Windows 11 24H2 (Build 26100+)
 - [x] Очистка Standby RAM кэша через NT-ядро в оперативной памяти
 - [x] Двухуровневый гранулярный движок отката (Restore Point + JSON-снимки с проверкой каждого ключа)
-- [x] Набор автоматических тестов из 52 проверок
+- [x] Набор автоматических тестов из 63 проверок
+- [x] 3-Уровневая архитектура пресетов (Light, Balanced, Ultra Gaming) с Laptop Guard
 - [x] Anycast DNS Benchmark и 1-Click переключатель DoH
 - [ ] Экспорт графических HTML/JSON отчетов о здоровье системы
 - [ ] Автоматическая интеграция с LatencyMon для замера DPC до и после

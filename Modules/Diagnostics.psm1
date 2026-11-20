@@ -502,8 +502,56 @@ function Get-SystemOptimizationAudit {
         Status         = if ($usbStatus.Disabled) { "ОТКЛЮЧЕНО (Оптимально)" } else { "ВКЛЮЧЕНО (Дефолт)" }
         Details        = $usbStatus.Description
         Optimal        = [bool]$usbStatus.Disabled
-        FixMenu        = "Главное меню -> Пункт [7] (Интерфейс и система) -> [5] или Пункт [2] (Супер-буст)"
+        FixMenu        = "Главное меню -> Пункт [8] (Интерфейс и система) -> [5] или Пункт [1] (Ultra Gaming)"
         Recommendation = "Отключить спящие режимы USB для предотвращения микро-лагов и задержек мыши/клавиатуры."
+    })
+
+    # 28. 1:1 Raw Mouse Input
+    $mouseStatus = Get-RawMouseInputStatus
+    $audit.Add([PSCustomObject]@{
+        Category       = "Низкая Задержка"
+        Setting        = "1:1 Raw Mouse Input (Акселерация курсора)"
+        Status         = if ($mouseStatus.Optimal) { "ОТКЛЮЧЕНА (1:1 Raw Input)" } else { "АКТИВНА (Дефолт)" }
+        Details        = $mouseStatus.Description
+        Optimal        = [bool]$mouseStatus.Optimal
+        FixMenu        = "Главное меню -> Пункт [4] (CPU & задержки) или Пункт [1] (Ultra Gaming)"
+        Recommendation = "Отключить акселерацию мыши для истинного 1:1 соответствия движений сенсора и прицела в играх."
+    })
+
+    # 29. Отклик клавиатуры (Keyboard Response Tuning)
+    $kbStatus = Get-KeyboardResponseStatus
+    $audit.Add([PSCustomObject]@{
+        Category       = "Низкая Задержка"
+        Setting        = "Отклик клавиатуры (Repeat Delay & Rate)"
+        Status         = if ($kbStatus.Optimal) { "ОПТИМИЗИРОВАН (Delay=0, Speed=31)" } else { "СТАНДАРТНЫЙ (Дефолт)" }
+        Details        = $kbStatus.Description
+        Optimal        = [bool]$kbStatus.Optimal
+        FixMenu        = "Главное меню -> Пункт [4] (CPU & задержки) или Пункт [1] (Ultra Gaming)"
+        Recommendation = "Снизить задержку повтора клавиш и увеличить скорость для мгновенного отклика при стрейфах."
+    })
+
+    # 30. Игровой режим Windows (Game Mode)
+    $gameModeStatus = Get-GameModeStatus
+    $audit.Add([PSCustomObject]@{
+        Category       = "Гейминг"
+        Setting        = "Игровой режим Windows (Game Mode)"
+        Status         = if ($gameModeStatus.Optimal) { "ВКЛЮЧЕН (AutoGameModeEnabled=1)" } else { "ОТКЛЮЧЕН / НЕ НАСТРОЕН" }
+        Details        = $gameModeStatus.Description
+        Optimal        = [bool]$gameModeStatus.Optimal
+        FixMenu        = "Главное меню -> Пункт [8] (Интерфейс и система) или Пункт [1] (Ultra Gaming)"
+        Recommendation = "Принудительно включить Game Mode для выделения максимального приоритета планировщика играм."
+    })
+
+    # 31. Узел 'Галерея' в Проводнике
+    $galleryStatus = Get-ExplorerGalleryStatus
+    $audit.Add([PSCustomObject]@{
+        Category       = "Интерфейс"
+        Setting        = "Узел 'Галерея' в Проводнике"
+        Status         = if ($galleryStatus.Optimal) { "СКРЫТ (Оптимально)" } else { "ОТОБРАЖАЕТСЯ" }
+        Details        = $galleryStatus.Description
+        Optimal        = [bool]$galleryStatus.Optimal
+        FixMenu        = "Главное меню -> Пункт [8] (Интерфейс и система) или Пункт [1] (Ultra Gaming)"
+        Recommendation = "Скрыть тяжелый узел Галереи для устранения фоновой индексации фото и ускорения Проводника."
     })
 
     return $audit
