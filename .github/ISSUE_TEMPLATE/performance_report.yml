@@ -1,0 +1,55 @@
+name: Performance Report
+description: Share empirical benchmark results (FPS, 1% Low, Frametime variance, DPC Latency)
+title: "[BENCHMARK]: "
+labels: ["benchmark", "community-data"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Empirical data drives this project. Thank you for benchmarking Windows 11 Master Optimizer!
+  - type: input
+    id: system_spec
+    attributes:
+      label: System Specifications
+      description: CPU, GPU, RAM speed/timings, Motherboard, Storage.
+      placeholder: e.g. i7-13700K, RTX 4070 Ti, 32GB DDR5-6000 CL30, Samsung 980 Pro
+    validations:
+      required: true
+  - type: input
+    id: game_tested
+    attributes:
+      label: Game / Engine Tested
+      description: Title, graphics preset, resolution, and display mode (Fullscreen Exclusive or Borderless).
+      placeholder: e.g. Counter-Strike 2, 1080p Low, 144Hz G-Sync Borderless
+    validations:
+      required: true
+  - type: textarea
+    id: benchmark_tool
+    attributes:
+      label: Measurement Methodology & Software
+      description: Did you use CapFrameX, PresentMon, LatencyMon, or FrameView? How many runs were averaged?
+      placeholder: e.g. CapFrameX 1.7.2, 5 recorded benchmark runs of 60 seconds each on Ancient benchmark map.
+    validations:
+      required: true
+  - type: textarea
+    id: results_comparison
+    attributes:
+      label: Before vs. After Results
+      description: Average FPS, 1% Low, 0.1% Low, Maximum DPC Latency (µs).
+      placeholder: |
+        BASELINE (Stock Windows 11):
+        - Avg FPS: 284
+        - 1% Low: 162
+        - DPC Latency (Max): 1240 µs
+
+        OPTIMIZED (Win11 Master Optimizer):
+        - Avg FPS: 289 (+1.7%)
+        - 1% Low: 198 (+22.2%)
+        - DPC Latency (Max): 112 µs (-91%)
+    validations:
+      required: true
+  - type: textarea
+    id: subjective_feel
+    attributes:
+      label: Subjective Input Feel & Sensor Responsiveness
+      description: Any noticeable difference in mouse tracking smoothness, micro-stutters, or audio clicks?

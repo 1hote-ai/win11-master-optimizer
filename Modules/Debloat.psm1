@@ -235,6 +235,36 @@ function Disable-TelemetryAndDiagnostics {
 
         # Остановка и отключение телеметрических служб
         $telemetryServices = @("DiagTrack", "dmwappushservice")
+        $savedServices = @()
+        foreach ($srvName in $telemetryServices) {
+            $srv = Get-Service -Name $srvName -ErrorAction SilentlyContinue
+            if ($srv) {
+                # Точное определение типа запуска с поддержкой AutomaticDelayedStart
+                $startType = $srv.StartType.ToString()
+                $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$srvName"
+                if (Test-Path $regPath) {
+                    $delayed = (Get-ItemProperty -Path $regPath -Name "DelayedAutostart" -ErrorAction SilentlyContinue).DelayedAutostart
+                    if ($delayed -eq 1 -and $startType -eq "Automatic") {
+                        $startType = "AutomaticDelayedStart"
+                    }
+                }
+                $savedServices += [PSCustomObject]@{
+                    Name        = $srv.Name
+                    Exists      = $true
+                    StartupType = $startType
+                    Status      = $srv.Status.ToString()
+                }
+            } else {
+                $savedServices += [PSCustomObject]@{
+                    Name        = $srvName
+                    Exists      = $false
+                    StartupType = "None"
+                    Status      = "None"
+                }
+            }
+        }
+        Save-StateSnapshot -Category "TelemetryServices" -StateData $savedServices -DryRun:$DryRun | Out-Null
+
         foreach ($srvName in $telemetryServices) {
             $srv = Get-Service -Name $srvName -ErrorAction SilentlyContinue
             if ($srv) {
@@ -252,6 +282,33 @@ function Disable-TelemetryAndDiagnostics {
             "\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip",
             "\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector"
         )
+
+        $savedTasks = @()
+        foreach ($t in $tasksToDisable) {
+            $parent = Split-Path $t -Parent
+            $normPath = if ($parent.EndsWith("\")) { $parent } else { "$parent\" }
+            $leaf = Split-Path $t -Leaf
+            $task = Get-ScheduledTask -TaskPath $normPath -TaskName $leaf -ErrorAction SilentlyContinue
+            if ($task) {
+                $isEnabled = ($null -ne $task.Settings -and $task.Settings.Enabled -eq $true)
+                $savedTasks += [PSCustomObject]@{
+                    TaskPath = $normPath
+                    TaskName = $leaf
+                    Exists   = $true
+                    Enabled  = [bool]$isEnabled
+                    State    = $task.State.ToString()
+                }
+            } else {
+                $savedTasks += [PSCustomObject]@{
+                    TaskPath = $normPath
+                    TaskName = $leaf
+                    Exists   = $false
+                    Enabled  = $false
+                    State    = "NotFound"
+                }
+            }
+        }
+        Save-StateSnapshot -Category "TelemetryTasks" -StateData $savedTasks -DryRun:$DryRun | Out-Null
 
         foreach ($t in $tasksToDisable) {
             Disable-ScheduledTask -TaskPath (Split-Path $t -Parent) -TaskName (Split-Path $t -Leaf) -ErrorAction SilentlyContinue | Out-Null
@@ -349,26 +406,135 @@ function Restore-DebloatSettings {
     Restore-RegistrySnapshot -Category "Widgets"
     Restore-RegistrySnapshot -Category "Telemetry"
 
-    # Включение служб телеметрии обратно
-    $telemetryServices = @("DiagTrack", "dmwappushservice")
-    foreach ($srvName in $telemetryServices) {
-        Set-Service -Name $srvName -StartupType Automatic -ErrorAction SilentlyContinue
-        Start-Service -Name $srvName -ErrorAction SilentlyContinue
+    # Точное восстановление исходного состояния служб телеметрии
+    $srvSnap = Get-LatestStateSnapshot -Category "TelemetryServices"
+    $servicesRestoredCleanly = $true
+    if ($srvSnap -and $srvSnap.StateData) {
+        foreach ($s in $srvSnap.StateData) {
+            if ($s.Exists) {
+                try {
+                    $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$($s.Name)"
+                    switch ($s.StartupType) {
+                        "AutomaticDelayedStart" {
+                            Set-Service -Name $s.Name -StartupType Automatic -ErrorAction Stop
+                            if (Test-Path $regPath) {
+                                Set-ItemProperty -Path $regPath -Name "DelayedAutostart" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+                            }
+                        }
+                        "Automatic" {
+                            Set-Service -Name $s.Name -StartupType Automatic -ErrorAction Stop
+                            if (Test-Path $regPath) {
+                                Remove-ItemProperty -Path $regPath -Name "DelayedAutostart" -ErrorAction SilentlyContinue
+                            }
+                        }
+                        "Manual" {
+                            Set-Service -Name $s.Name -StartupType Manual -ErrorAction Stop
+                            if (Test-Path $regPath) {
+                                Remove-ItemProperty -Path $regPath -Name "DelayedAutostart" -ErrorAction SilentlyContinue
+                            }
+                        }
+                        "Disabled" {
+                            Set-Service -Name $s.Name -StartupType Disabled -ErrorAction Stop
+                        }
+                        Default {
+                            Set-Service -Name $s.Name -StartupType $s.StartupType -ErrorAction Stop
+                        }
+                    }
+
+                    # Восстановление статуса службы (запускается ТОЛЬКО если до оптимизации была Running)
+                    if ($s.Status -eq "Running") {
+                        Start-Service -Name $s.Name -ErrorAction SilentlyContinue
+                    } elseif ($s.Status -eq "Stopped") {
+                        Stop-Service -Name $s.Name -Force -ErrorAction SilentlyContinue
+                    }
+
+                    # Пост-проверка фактического типа запуска и статуса
+                    $currSrv = Get-Service -Name $s.Name -ErrorAction SilentlyContinue
+                    $currType = if ($currSrv) { $currSrv.StartType.ToString() } else { "Unknown" }
+                    if ($currType -eq "Automatic" -and (Test-Path $regPath)) {
+                        $isDel = (Get-ItemProperty -Path $regPath -Name "DelayedAutostart" -ErrorAction SilentlyContinue).DelayedAutostart
+                        if ($isDel -eq 1) { $currType = "AutomaticDelayedStart" }
+                    }
+
+                    $typeMatches = ($currType -eq $s.StartupType)
+                    $statusMatches = ($null -ne $currSrv -and ($s.Status -eq "Stopped" -or $currSrv.Status.ToString() -eq $s.Status))
+
+                    if ($typeMatches -and $statusMatches) {
+                        Write-Host "  [OK] Служба $($s.Name) возвращена к исходному состоянию (StartupType: $($s.StartupType), Status: $($s.Status))" -ForegroundColor Green
+                    } else {
+                        $servicesRestoredCleanly = $false
+                        Write-Host "  [ERROR] Несоответствие при восстановлении службы $($s.Name): ожидался StartupType '$($s.StartupType)' (фактический '$currType'), Status '$($s.Status)' (фактический '$($currSrv.Status)')" -ForegroundColor Red
+                    }
+                } catch {
+                    $servicesRestoredCleanly = $false
+                    Write-Host "  [ERROR] Ошибка восстановления службы $($s.Name): $($_.Exception.Message)" -ForegroundColor Red
+                }
+            }
+        }
+    } else {
+        # Fallback по умолчанию только если снимок отсутствует
+        $telemetryServices = @("DiagTrack", "dmwappushservice")
+        foreach ($srvName in $telemetryServices) {
+            Set-Service -Name $srvName -StartupType Automatic -ErrorAction SilentlyContinue
+            Start-Service -Name $srvName -ErrorAction SilentlyContinue
+        }
     }
 
-    # Повторное включение запланированных задач телеметрии
-    $tasksToEnable = @(
-        "\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser",
-        "\Microsoft\Windows\Application Experience\ProgramDataUpdater",
-        "\Microsoft\Windows\Customer Experience Improvement Program\Consolidator",
-        "\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip",
-        "\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector"
-    )
-    foreach ($t in $tasksToEnable) {
-        Enable-ScheduledTask -TaskPath (Split-Path $t -Parent) -TaskName (Split-Path $t -Leaf) -ErrorAction SilentlyContinue | Out-Null
+    # Точное восстановление только тех задач, которые изначально имели признак Enabled
+    $taskSnap = Get-LatestStateSnapshot -Category "TelemetryTasks"
+    $tasksRestoredCleanly = $true
+    if ($taskSnap -and $taskSnap.StateData) {
+        foreach ($t in $taskSnap.StateData) {
+            if ($t.Exists) {
+                # Проверяем фактический признак Enabled, а не только State
+                $shouldBeEnabled = $false
+                if ($null -ne $t.PSObject.Properties['Enabled']) {
+                    $shouldBeEnabled = [bool]$t.Enabled
+                } else {
+                    $shouldBeEnabled = ($t.State -ne "Disabled" -and $t.State -ne "NotFound")
+                }
+
+                if ($shouldBeEnabled) {
+                    Enable-ScheduledTask -TaskPath $t.TaskPath -TaskName $t.TaskName -ErrorAction SilentlyContinue | Out-Null
+                    $currTask = Get-ScheduledTask -TaskPath $t.TaskPath -TaskName $t.TaskName -ErrorAction SilentlyContinue
+                    $isNowEnabled = ($currTask -and $currTask.Settings.Enabled -eq $true)
+                    if ($isNowEnabled) {
+                        Write-Host "  [OK] Запланированная задача $($t.TaskName) включена (исходное Enabled: True)" -ForegroundColor Green
+                    } else {
+                        $tasksRestoredCleanly = $false
+                        Write-Host "  [ERROR] Не удалось включить запланированную задачу $($t.TaskName)" -ForegroundColor Red
+                    }
+                } else {
+                    Disable-ScheduledTask -TaskPath $t.TaskPath -TaskName $t.TaskName -ErrorAction SilentlyContinue | Out-Null
+                    Write-Host "  [OK] Задача $($t.TaskName) оставлена отключенной (как было до оптимизации, Enabled: False)" -ForegroundColor DarkGray
+                }
+            }
+        }
+    } else {
+        # Fallback по умолчанию только при отсутствии снимка
+        $tasksToEnable = @(
+            "\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser",
+            "\Microsoft\Windows\Application Experience\ProgramDataUpdater",
+            "\Microsoft\Windows\Customer Experience Improvement Program\Consolidator",
+            "\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip",
+            "\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector"
+        )
+        foreach ($t in $tasksToEnable) {
+            Enable-ScheduledTask -TaskPath (Split-Path $t -Parent) -TaskName (Split-Path $t -Leaf) -ErrorAction SilentlyContinue | Out-Null
+        }
     }
 
-    Write-Host "[Debloat] Параметры телеметрии, служб и интерфейса возвращены к значениям по умолчанию." -ForegroundColor Green
+    $overallOk = ($servicesRestoredCleanly -and $tasksRestoredCleanly)
+    if ($overallOk) {
+        Write-Host "[Debloat] Параметры телеметрии, служб и интерфейса возвращены к исходному состоянию." -ForegroundColor Green
+    } else {
+        Write-Host "[Debloat ERROR] Часть служб или задач телеметрии не удалось вернуть к исходному состоянию." -ForegroundColor Red
+    }
+    return [PSCustomObject]@{
+        Success          = $overallOk
+        ServicesRestored = $servicesRestoredCleanly
+        TasksRestored    = $tasksRestoredCleanly
+    }
 }
 
 function Get-RecallStatus {

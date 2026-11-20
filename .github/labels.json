@@ -1,0 +1,62 @@
+[
+  {
+    "name": "bug",
+    "color": "d73a4a",
+    "description": "Something isn't working as expected or threw an error"
+  },
+  {
+    "name": "enhancement",
+    "color": "a2eeef",
+    "description": "New optimization, diagnostic metric, or suite feature"
+  },
+  {
+    "name": "safety",
+    "color": "0e8a16",
+    "description": "System Restore Points, JSON snapshots, or rollback engine"
+  },
+  {
+    "name": "latency",
+    "color": "0075ca",
+    "description": "DPC/ISR queues, MSI Mode, CPU quanta, or timer resolution"
+  },
+  {
+    "name": "network",
+    "color": "1d76db",
+    "description": "Nagle algorithm, TCP stack, RSS, or Anycast DNS benchmark"
+  },
+  {
+    "name": "gpu-display",
+    "color": "5319e7",
+    "description": "DWM MPO, HAGS, DirectX windowed mode, HDCP killer, or shader clean"
+  },
+  {
+    "name": "debloat",
+    "color": "e99695",
+    "description": "Windows 11 24H2 Recall, Copilot, Bing, Telemetry, or UWP removal"
+  },
+  {
+    "name": "benchmark",
+    "color": "fbca04",
+    "description": "Empirical data, CapFrameX/PresentMon graphs, or LatencyMon logs"
+  },
+  {
+    "name": "compatibility",
+    "color": "d93f0b",
+    "description": "Hardware, driver, or anti-cheat specific interaction"
+  },
+  {
+    "name": "documentation",
+    "color": "0052cc",
+    "description": "Improvements or additions to technical docs and README"
+  },
+  {
+    "name": "triage",
+    "color": "ededed",
+    "description": "Awaiting initial maintainer review and categorization"
+  },
+  {
+    "name": "verified",
+    "color": "008672",
+    "description": "Tested and validated with reproducible data"
+  }
+]

@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 640" width="100%" height="100%">
+  <defs>
+    <linearGradient id="termBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#070A11"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </linearGradient>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00D2FF"/>
+      <stop offset="100%" stop-color="#10B981"/>
+    </linearGradient>
+    <filter id="subtleShadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <rect width="1000" height="640" fill="#05070D"/>
+
+  <!-- Window Container -->
+  <g filter="url(#subtleShadow)" transform="translate(20, 20)">
+    <!-- Terminal Outer Frame -->
+    <rect width="960" height="600" rx="10" fill="url(#termBg)" stroke="#1E293B" stroke-width="1.5"/>
+
+    <!-- Terminal Titlebar -->
+    <path d="M0 10 Q0 0 10 0 L950 0 Q960 0 960 10 L960 38 L0 38 Z" fill="#161E2E"/>
+    <line x1="0" y1="38" x2="960" y2="38" stroke="#1E293B" stroke-width="1"/>
+
+    <!-- Window Controls -->
+    <circle cx="20" cy="19" r="6" fill="#EF4444"/>
+    <circle cx="40" cy="19" r="6" fill="#F59E0B"/>
+    <circle cx="60" cy="19" r="6" fill="#10B981"/>
+
+    <!-- Window Title -->
+    <text x="480" y="24" font-family="'JetBrains Mono', Consolas, monospace" font-size="12" fill="#94A3B8" text-anchor="middle">
+      Administrator: Windows PowerShell — .\Win11Optimizer.ps1
+    </text>
+
+    <!-- Terminal Content Area -->
+    <g transform="translate(30, 60)" font-family="'JetBrains Mono', Consolas, 'Courier New', monospace" font-size="13" xml:space="preserve">
+      <!-- ASCII Header Box -->
+      <text x="0" y="20" fill="#00D2FF">========================================================================================</text>
+      <text x="0" y="38" fill="#FFFFFF" font-weight="bold">                     WINDOWS 11 MASTER OPTIMIZER (v0.1.0-beta)                          </text>
+      <text x="0" y="56" fill="#10B981">            Zero Snake Oil • Pure Latency Reduction • 2-Tier Rollback Engine            </text>
+      <text x="0" y="74" fill="#00D2FF">========================================================================================</text>
+
+      <!-- Hardware Telemetry Info -->
+      <text x="0" y="100" fill="#94A3B8">  ОС:         <tspan fill="#F1F5F9">Windows 11 Pro (24H2 Build 26100.2161)</tspan>  |  CPU: <tspan fill="#F1F5F9">Intel Core i7-11700F (16 T)</tspan></text>
+      <text x="0" y="118" fill="#94A3B8">  GPU:        <tspan fill="#38BDF8">NVIDIA GeForce RTX 3060 (MSI High)</tspan>     |  RAM: <tspan fill="#10B981">32 GB (Standby Purge Ready)</tspan></text>
+      <text x="0" y="136" fill="#94A3B8">  DPC/ISR:    <tspan fill="#10B981">0.29% Time, 3129 DPCs/sec [В норме]</tspan>     |  Timer: <tspan fill="#10B981">1.0 ms (Min: 0.5 ms)</tspan></text>
+
+      <text x="0" y="166" fill="#F59E0B" font-weight="bold"> ГЛАВНОЕ МЕНЮ ОПТИМИЗАЦИИ:</text>
+
+      <!-- Menu Items -->
+      <text x="0" y="194" fill="#00D2FF">  [1]   🔎  ПРОВЕРИТЬ ОПТИМИЗАЦИЮ ПК</text>
+      <text x="360" y="194" fill="#94A3B8">(Аудит 26 настроек системы [✓] / [!])</text>
+
+      <text x="0" y="222" fill="#10B981" font-weight="bold">  [2]   🚀  ИГРОВОЙ СУПЕР-БУСТ</text>
+      <text x="360" y="222" fill="#6EE7B7">(Restore Point -&gt; MSI, CPU, GPU, Network, RAM, UI)</text>
+
+      <text x="0" y="250" fill="#E2E8F0">  [3]   ⚡  ЖЁСТКАЯ ОПТИМИЗАЦИЯ</text>
+      <text x="360" y="250" fill="#94A3B8">(MSI Mode High, кванты CPU 0x26, Standby RAM, VBS)</text>
+
+      <text x="0" y="278" fill="#E2E8F0">  [4]   🌐  ИГРОВОЙ СЕТЕВОЙ СТЕК</text>
+      <text x="360" y="278" fill="#94A3B8">(Nagle Off, RSS, DNS Benchmark &amp; DoH Switcher)</text>
+
+      <text x="0" y="306" fill="#E2E8F0">  [5]   🎮  GPU, ДИСПЛЕЙ И КЭШ ШЕЙДЕРОВ</text>
+      <text x="360" y="306" fill="#94A3B8">(MPO TestMode=5, HAGS, HDCP Killer, Очистка 7+ ГБ)</text>
+
+      <text x="0" y="334" fill="#E2E8F0">  [6]   🛡   SMART DEBLOAT 24H2</text>
+      <text x="360" y="334" fill="#94A3B8">(Recall Off, Copilot Off, Bing Search Off, Safe UWP)</text>
+
+      <text x="0" y="362" fill="#E2E8F0">  [7]   🎨  ИНТЕРФЕЙС И СИСТЕМА</text>
+      <text x="360" y="362" fill="#94A3B8">(Меню Win10, Проводник, отключение сна USB, Maint)</text>
+
+      <text x="0" y="390" fill="#E2E8F0">  [8]   📦  МЕНЕДЖЕР ПРИЛОЖЕНИЙ WINGET</text>
+      <text x="360" y="390" fill="#94A3B8">(Тихая установка 25 проверенных кибер-утилит)</text>
+
+      <text x="0" y="418" fill="#E2E8F0">  [9]   📊  ДИАГНОСТИКА ЗАДЕРЖЕК</text>
+      <text x="360" y="418" fill="#94A3B8">(Замер пинга, Live DPC/ISR, системный таймер)</text>
+
+      <text x="0" y="446" fill="#F59E0B">  [10]  🔄  ОТКАТ И ВОССТАНОВЛЕНИЕ</text>
+      <text x="360" y="446" fill="#FCD34D">(1-Click сброс к заводским дефолтам Windows 11)</text>
+
+      <text x="0" y="474" fill="#64748B">  [0]   🚪  Выход</text>
+
+      <!-- Terminal Input Line -->
+      <text x="0" y="508" fill="#38BDF8">PS C:\Optimizer&gt; </text>
+      <text x="145" y="508" fill="#FFFFFF">Шеф, выберите пункт меню [1-10]: </text>
+      <rect x="420" y="495" width="8" height="15" fill="#00D2FF" opacity="0.85"/>
+    </g>
+  </g>
+</svg>

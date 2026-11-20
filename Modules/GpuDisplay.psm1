@@ -110,7 +110,7 @@ function Restore-MpoState {
 
     Write-Host "[MPO Optimizer] Откат настройки MPO к исходному состоянию..." -ForegroundColor Yellow
     $restored = Restore-RegistrySnapshot -Category "MpoSetting"
-    if (-not $restored) {
+    if (-not $restored.Success) {
         Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\Dwm" -Name "OverlayTestMode" -ErrorAction SilentlyContinue
         Write-Host "[MPO Optimizer] Ключ OverlayTestMode удален (дефолт Windows)." -ForegroundColor Green
     }
@@ -179,7 +179,7 @@ function Restore-HagsState {
 
     Write-Host "[HAGS Optimizer] Откат настройки HAGS к исходному состоянию..." -ForegroundColor Yellow
     $restored = Restore-RegistrySnapshot -Category "HagsSetting"
-    if (-not $restored) {
+    if (-not $restored.Success) {
         Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" -Name "HwSchMode" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
         Write-Host "[HAGS Optimizer] HwSchMode выставлен в 1 (дефолт)." -ForegroundColor Green
     }
@@ -231,7 +231,7 @@ function Restore-DirectXWindowedOptimization {
 
     Write-Host "[DirectX Optimizer] Откат оконных оптимизаций DirectX..." -ForegroundColor Yellow
     $restored = Restore-RegistrySnapshot -Category "DirectXWindowed"
-    if (-not $restored) {
+    if (-not $restored.Success) {
         Remove-ItemProperty -Path "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences" -Name "DirectXUserGlobalSettings" -ErrorAction SilentlyContinue
         Write-Host "[DirectX Optimizer] Параметр DirectXUserGlobalSettings удален." -ForegroundColor Green
     }
@@ -279,7 +279,7 @@ function Restore-WindowsUpdateDriverProtection {
 
     Write-Host "[Driver Safety] Откат защиты драйверов Windows Update..." -ForegroundColor Yellow
     $restored = Restore-RegistrySnapshot -Category "WUDriverProtection"
-    if (-not $restored) {
+    if (-not $restored.Success) {
         Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "ExcludeWUDriversInQualityUpdate" -ErrorAction SilentlyContinue
         Write-Host "[Driver Safety] ExcludeWUDriversInQualityUpdate удален." -ForegroundColor Green
     }
@@ -337,7 +337,7 @@ function Restore-NvidiaHdcp {
 
     Write-Host "[NVIDIA HDCP] Откат настройки HDCP DRM к дефолту..." -ForegroundColor Yellow
     $restored = Restore-RegistrySnapshot -Category "NvidiaHdcp"
-    if (-not $restored) {
+    if (-not $restored.Success) {
         $nvidiaGpus = @(Get-NvidiaDisplayAdapterKeys)
         foreach ($gpu in $nvidiaGpus) {
             Remove-ItemProperty -Path $gpu.RegistryPath -Name "RMHdcpKeyglobZero" -ErrorAction SilentlyContinue

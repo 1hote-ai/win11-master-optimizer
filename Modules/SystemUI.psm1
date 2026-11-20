@@ -266,6 +266,48 @@ function Disable-UsbPowerSaving {
         return
     }
 
+    # Сохранение точных исходных параметров USB Selective Suspend (AC/DC) и WMI контроллеров
+    try {
+        $activeScheme = powercfg /getactivescheme 2>&1
+        $activeGuid = $null
+        if ($activeScheme -match '([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})') {
+            $activeGuid = $Matches[1]
+        }
+
+        $subGroup = "2a737441-1930-4402-8d77-b2bebba308a3"
+        $setting = "48e6b7a6-50f5-4782-a5d4-53bb8f07e226"
+        $origAC = $null; $origDC = $null
+
+        $lines = powercfg /q SCHEME_CURRENT $subGroup 2>&1
+        foreach ($line in $lines) {
+            if ($line -match ':\s*0x([0-9a-fA-F]+)') {
+                $val = [Convert]::ToInt32($Matches[1], 16)
+                if ($line -match '(сети|AC)') { $origAC = $val }
+                elseif ($line -match '(батарей|DC)') { $origDC = $val }
+            }
+        }
+
+        $savedWmi = @()
+        $powerMgmt = Get-CimInstance -ClassName MSPower_DeviceEnable -Namespace root\wmi -ErrorAction SilentlyContinue
+        if ($powerMgmt) {
+            foreach ($p in $powerMgmt) {
+                $savedWmi += [PSCustomObject]@{
+                    InstanceName = $p.InstanceName
+                    Enable       = [bool]$p.Enable
+                }
+            }
+        }
+
+        Save-StateSnapshot -Category "UsbPowerSettings" -StateData @{
+            ActiveSchemeGuid = $activeGuid
+            AC               = $origAC
+            DC               = $origDC
+            WmiInstances     = $savedWmi
+        } -DryRun:$DryRun | Out-Null
+    } catch {
+        Write-Verbose "Предупреждение при сохранении снимка USB: $_"
+    }
+
     try {
         # 1. Отключение USB Selective Suspend через powercfg для текущей схемы (AC и DC)
         powercfg -setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0 2>&1 | Out-Null
@@ -324,7 +366,7 @@ function Restore-WindowsAutomaticMaintenance {
 
     Write-Host "[Maintenance] Откат настройки автоматического обслуживания..." -ForegroundColor Yellow
     $restored = Restore-RegistrySnapshot -Category "Maintenance"
-    if (-not $restored) {
+    if (-not $restored.Success) {
         Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\Maintenance" -Name "MaintenanceDisabled" -ErrorAction SilentlyContinue
         Write-Host "[Maintenance] MaintenanceDisabled удален (дефолт Windows)." -ForegroundColor Green
     }
@@ -391,30 +433,72 @@ function Set-ExplorerHomeVisibility {
     }
 }
 
+function Restore-UsbPowerSettings {
+    [CmdletBinding()]
+    param()
+
+    Write-Host "[USB Optimizer] Откат настроек энергосбережения USB к исходным..." -ForegroundColor Yellow
+    $snap = Get-LatestStateSnapshot -Category "UsbPowerSettings"
+    if ($snap -and $snap.StateData) {
+        $targetScheme = if ($snap.StateData.ActiveSchemeGuid) { $snap.StateData.ActiveSchemeGuid } else { "SCHEME_CURRENT" }
+        $subGroup = "2a737441-1930-4402-8d77-b2bebba308a3"
+        $setting = "48e6b7a6-50f5-4782-a5d4-53bb8f07e226"
+
+        if ($null -ne $snap.StateData.AC) {
+            powercfg -setacvalueindex $targetScheme $subGroup $setting $snap.StateData.AC 2>&1 | Out-Null
+        }
+        if ($null -ne $snap.StateData.DC) {
+            powercfg -setdcvalueindex $targetScheme $subGroup $setting $snap.StateData.DC 2>&1 | Out-Null
+        }
+        powercfg -setactive $targetScheme 2>&1 | Out-Null
+
+        if ($snap.StateData.WmiInstances) {
+            foreach ($w in $snap.StateData.WmiInstances) {
+                $inst = Get-CimInstance -ClassName MSPower_DeviceEnable -Namespace root\wmi -ErrorAction SilentlyContinue |
+                    Where-Object { $_.InstanceName -eq $w.InstanceName }
+                if ($inst) {
+                    Set-CimInstance -InputObject $inst -Property @{ Enable = [bool]$w.Enable } -ErrorAction SilentlyContinue | Out-Null
+                }
+            }
+        }
+        Write-Host "  [OK] Исходные параметры USB Selective Suspend (AC/DC) для схемы $targetScheme точно восстановлены." -ForegroundColor Green
+    } else {
+        # Fallback только при отсутствии снимка
+        powercfg -setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 1 2>&1 | Out-Null
+        powercfg -setdcvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 1 2>&1 | Out-Null
+        powercfg -setactive SCHEME_CURRENT 2>&1 | Out-Null
+        Write-Host "  [WARNING] Снимок USB не найден: выставлен стандартный дефолт (1 / включено)." -ForegroundColor Yellow
+    }
+}
+
 function Restore-SystemUISettings {
     [CmdletBinding()]
     param()
 
     Write-Host "[SystemUI] Откат настроек Проводника и GameDVR к дефолту..." -ForegroundColor Yellow
     Restore-RegistrySnapshot -Category "ExplorerUI"
-    Restore-RegistrySnapshot -Category "GameDVR"
+    $resDVR = Restore-RegistrySnapshot -Category "GameDVR"
     Restore-RegistrySnapshot -Category "Maintenance"
     Restore-RegistrySnapshot -Category "ExplorerHome"
 
-    # Восстановление дефолтов GameDVR
-    $gcs = "HKCU:\System\GameConfigStore"
-    Set-ItemProperty -Path $gcs -Name "GameDVR_Enabled" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+    # Восстановление дефолтов GameDVR только если снимок не сработал
+    if (-not $resDVR.Success) {
+        $gcs = "HKCU:\System\GameConfigStore"
+        Set-ItemProperty -Path $gcs -Name "GameDVR_Enabled" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+    }
     
     # Сброс контекстного меню на стандартное Win11
     Set-ClassicContextMenu -Enable $false -NoRestart
 
-    # Восстановление USB Selective Suspend в схеме питания (дефолт = 1 / включен)
-    powercfg -setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 1 2>&1 | Out-Null
-    powercfg -setdcvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 1 2>&1 | Out-Null
-    powercfg -setactive SCHEME_CURRENT 2>&1 | Out-Null
+    # Точное восстановление параметров энергосбережения USB
+    Restore-UsbPowerSettings
 
     # Восстановление раздела Главная
     Set-ExplorerHomeVisibility -Hide $false -NoRestart -ErrorAction SilentlyContinue
+
+    # Откат видимости узла Галереи и параметров Game Mode
+    Restore-ExplorerGalleryVisibility -ErrorAction SilentlyContinue
+    Restore-GameModeSettings -ErrorAction SilentlyContinue
 
     # Снятие блокировок меню Пуск и обслуживания, если снимок отсутствовал
     Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer" -Name "HideRecommendedSection" -ErrorAction SilentlyContinue
@@ -539,12 +623,201 @@ function Get-ExplorerHomeVisibilityStatus {
     }
 }
 
+function Set-ExplorerGalleryVisibility {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)]
+        $Hide = $true,
+        [switch]$DryRun = $false,
+        [switch]$NoRestart = $false
+    )
+
+    $shouldHide = if ($Hide -is [bool]) { $Hide } else { [bool]::Parse($Hide.ToString()) }
+    $actionText = if ($shouldHide) { "Скрытие узла 'Галерея' (Gallery)" } else { "Отображение узла 'Галерея' (Gallery)" }
+    Write-Host "`n[Explorer Gallery] $actionText в панели навигации Проводника..." -ForegroundColor Cyan
+
+    $folderGuid = "{e88865ea-0e1c-4e20-9aa6-ed353b747f69}"
+    $clsidGuid  = "{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}"
+    
+    $hklmPropBag = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FolderDescriptions\$folderGuid\PropertyBag"
+    $hkcuPropBag = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FolderDescriptions\$folderGuid\PropertyBag"
+    $clsidKey    = "HKCU:\Software\Classes\CLSID\$clsidGuid"
+
+    if ($DryRun) {
+        $val = if ($shouldHide) { "Hide" } else { "Show" }
+        Write-Host "  [DRY-RUN] Будет установлено ThisPCPolicy = '$val' в FolderDescriptions $folderGuid (HKLM/HKCU)" -ForegroundColor DarkGray
+        Write-Host "  [DRY-RUN] Будет установлено System.IsPinnedToNameSpaceTree = $(if ($shouldHide) { 0 } else { 1 }) в $clsidKey" -ForegroundColor DarkGray
+        return
+    }
+
+    $targets = @(
+        @{ Path = $hklmPropBag; Name = "ThisPCPolicy" },
+        @{ Path = $hkcuPropBag; Name = "ThisPCPolicy" },
+        @{ Path = $clsidKey;    Name = "System.IsPinnedToNameSpaceTree" }
+    )
+    Save-RegistrySnapshot -Category "ExplorerGallery" -RegistryTargets $targets -DryRun:$DryRun | Out-Null
+
+    try {
+        if ($shouldHide) {
+            if (-not (Test-Path $hklmPropBag)) { New-Item -Path $hklmPropBag -Force | Out-Null }
+            Set-ItemProperty -Path $hklmPropBag -Name "ThisPCPolicy" -Value "Hide" -Type String -Force
+
+            if (-not (Test-Path $hkcuPropBag)) { New-Item -Path $hkcuPropBag -Force | Out-Null }
+            Set-ItemProperty -Path $hkcuPropBag -Name "ThisPCPolicy" -Value "Hide" -Type String -Force
+
+            if (-not (Test-Path $clsidKey)) { New-Item -Path $clsidKey -Force | Out-Null }
+            Set-ItemProperty -Path $clsidKey -Name "System.IsPinnedToNameSpaceTree" -Value 0 -Type DWord -Force
+
+            Write-Host "  [OK] Узел 'Галерея' успешно скрыт из Проводника (устранена фоновая загрузка каталога фото)." -ForegroundColor Green
+        } else {
+            if (Test-Path $hklmPropBag) {
+                Set-ItemProperty -Path $hklmPropBag -Name "ThisPCPolicy" -Value "Show" -Type String -Force
+            }
+            if (Test-Path $hkcuPropBag) {
+                Set-ItemProperty -Path $hkcuPropBag -Name "ThisPCPolicy" -Value "Show" -Type String -Force
+            }
+            if (Test-Path $clsidKey) {
+                Set-ItemProperty -Path $clsidKey -Name "System.IsPinnedToNameSpaceTree" -Value 1 -Type DWord -Force
+            }
+            Write-Host "  [OK] Узел 'Галерея' возвращен в Проводник." -ForegroundColor Green
+        }
+
+        if (-not $NoRestart) {
+            Restart-ExplorerGraceful
+        }
+    } catch {
+        Write-Host "  [ERROR] Ошибка изменения видимости узла 'Галерея': $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
+function Restore-ExplorerGalleryVisibility {
+    [CmdletBinding()]
+    param(
+        [switch]$NoRestart = $false
+    )
+
+    Write-Host "[Explorer Gallery] Откат видимости узла 'Галерея'..." -ForegroundColor Yellow
+    $restored = Restore-RegistrySnapshot -Category "ExplorerGallery"
+    if (-not $restored.Success) {
+        $folderGuid = "{e88865ea-0e1c-4e20-9aa6-ed353b747f69}"
+        $clsidGuid  = "{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}"
+        $hklmPropBag = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FolderDescriptions\$folderGuid\PropertyBag"
+        $hkcuPropBag = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FolderDescriptions\$folderGuid\PropertyBag"
+        $clsidKey    = "HKCU:\Software\Classes\CLSID\$clsidGuid"
+
+        if (Test-Path $hklmPropBag) { Remove-ItemProperty -Path $hklmPropBag -Name "ThisPCPolicy" -ErrorAction SilentlyContinue }
+        if (Test-Path $hkcuPropBag) { Remove-ItemProperty -Path $hkcuPropBag -Name "ThisPCPolicy" -ErrorAction SilentlyContinue }
+        if (Test-Path $clsidKey) { Remove-ItemProperty -Path $clsidKey -Name "System.IsPinnedToNameSpaceTree" -ErrorAction SilentlyContinue }
+        Write-Host "[Explorer Gallery] Параметры Галереи удалены (дефолт Windows)." -ForegroundColor Green
+    }
+
+    if (-not $NoRestart) {
+        Restart-ExplorerGraceful
+    }
+}
+
+function Get-ExplorerGalleryStatus {
+    [CmdletBinding()]
+    param()
+
+    $folderGuid = "{e88865ea-0e1c-4e20-9aa6-ed353b747f69}"
+    $clsidGuid  = "{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}"
+    $hklmPropBag = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FolderDescriptions\$folderGuid\PropertyBag"
+    $hkcuPropBag = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FolderDescriptions\$folderGuid\PropertyBag"
+    $clsidKey    = "HKCU:\Software\Classes\CLSID\$clsidGuid"
+
+    $isHidden = $false
+    try {
+        $p1 = Get-ItemProperty -Path $hklmPropBag -ErrorAction SilentlyContinue
+        $p2 = Get-ItemProperty -Path $clsidKey -ErrorAction SilentlyContinue
+        $p3 = Get-ItemProperty -Path $hkcuPropBag -ErrorAction SilentlyContinue
+        if (($p1 -and $p1.PSObject.Properties['ThisPCPolicy'] -and $p1.ThisPCPolicy -eq "Hide") -or `
+            ($p3 -and $p3.PSObject.Properties['ThisPCPolicy'] -and $p3.ThisPCPolicy -eq "Hide") -or `
+            ($p2 -and $p2.PSObject.Properties['System.IsPinnedToNameSpaceTree'] -and $p2.'System.IsPinnedToNameSpaceTree' -eq 0)) {
+            $isHidden = $true
+        }
+    } catch {}
+
+    return [PSCustomObject]@{
+        Hidden      = $isHidden
+        Optimal     = $isHidden
+        Description = if ($isHidden) { "Скрыта (Галерея отключена, без оверхеда фото)" } else { "Отображается (Дефолт)" }
+    }
+}
+
+function Set-GameModeForced {
+    [CmdletBinding()]
+    param(
+        [switch]$DryRun = $false
+    )
+
+    Write-Host "`n[Game Mode] Принудительная активация игрового режима Windows 11 (Game Mode)..." -ForegroundColor Cyan
+
+    $gameBarKey = "HKCU:\Software\Microsoft\GameBar"
+
+    if ($DryRun) {
+        Write-Host "  [DRY-RUN] Будет установлено: AutoGameModeEnabled = 1, AllowAutoGameMode = 1 в $gameBarKey" -ForegroundColor DarkGray
+        return
+    }
+
+    $targets = @(
+        @{ Path = $gameBarKey; Name = "AutoGameModeEnabled" },
+        @{ Path = $gameBarKey; Name = "AllowAutoGameMode" }
+    )
+    Save-RegistrySnapshot -Category "GameMode" -RegistryTargets $targets -DryRun:$DryRun | Out-Null
+
+    try {
+        if (-not (Test-Path $gameBarKey)) { New-Item -Path $gameBarKey -Force | Out-Null }
+        Set-ItemProperty -Path $gameBarKey -Name "AutoGameModeEnabled" -Value 1 -Type DWord -Force
+        Set-ItemProperty -Path $gameBarKey -Name "AllowAutoGameMode" -Value 1 -Type DWord -Force
+        Write-Host "  [OK] Game Mode принудительно включен (AutoGameModeEnabled = 1). Игровым процессам гарантирован приоритет планировщика." -ForegroundColor Green
+    } catch {
+        Write-Host "  [ERROR] Ошибка включения Game Mode: $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
+function Restore-GameModeSettings {
+    [CmdletBinding()]
+    param()
+
+    Write-Host "[Game Mode] Откат настроек Game Mode..." -ForegroundColor Yellow
+    $restored = Restore-RegistrySnapshot -Category "GameMode"
+    if (-not $restored.Success) {
+        $gameBarKey = "HKCU:\Software\Microsoft\GameBar"
+        if (Test-Path $gameBarKey) {
+            Set-ItemProperty -Path $gameBarKey -Name "AutoGameModeEnabled" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Get-GameModeStatus {
+    [CmdletBinding()]
+    param()
+
+    $gameBarKey = "HKCU:\Software\Microsoft\GameBar"
+    $isEnabled = $false
+    try {
+        $p = Get-ItemProperty -Path $gameBarKey -ErrorAction SilentlyContinue
+        if ($p -and $p.PSObject.Properties['AutoGameModeEnabled'] -and $p.AutoGameModeEnabled -eq 1) {
+            $isEnabled = $true
+        }
+    } catch {}
+
+    return [PSCustomObject]@{
+        Enabled     = $isEnabled
+        Optimal     = $isEnabled
+        Description = if ($isEnabled) { "Принудительно включен (Game Mode активен)" } else { "Отключен / Не настроен" }
+    }
+}
+
 Export-ModuleMember -Function Set-ClassicContextMenu, Set-FileExplorerTweaks, `
                              Set-GameDvrOptimized, Enable-ClassicWindowsPhotoViewer, `
                              Disable-UsbPowerSaving, Disable-WindowsAutomaticMaintenance, `
                              Restore-WindowsAutomaticMaintenance, Set-ExplorerHomeVisibility, `
-                             Restore-SystemUISettings, Restart-ExplorerGraceful, `
+                             Restore-SystemUISettings, Restore-UsbPowerSettings, Restart-ExplorerGraceful, `
                              Get-UsbPowerSavingStatus, Get-ClassicContextMenuStatus, `
                              Get-FileExplorerTweaksStatus, Get-GameDvrStatus, `
                              Get-ClassicWindowsPhotoViewerStatus, Get-WindowsAutomaticMaintenanceStatus, `
-                             Get-ExplorerHomeVisibilityStatus
+                             Get-ExplorerHomeVisibilityStatus, `
+                             Set-ExplorerGalleryVisibility, Restore-ExplorerGalleryVisibility, Get-ExplorerGalleryStatus, `
+                             Set-GameModeForced, Restore-GameModeSettings, Get-GameModeStatus

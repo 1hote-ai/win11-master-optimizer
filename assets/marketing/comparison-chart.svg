@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" width="100%" height="100%">
+  <defs>
+    <linearGradient id="chartBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#070A12"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1000" height="620" rx="12" fill="url(#chartBg)" stroke="#1E293B" stroke-width="2"/>
+
+  <!-- Title -->
+  <text x="50" y="55" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="26" font-weight="800" fill="#FFFFFF">
+    Engineering Comparison: Shady Tweakers vs. Win11 Master Optimizer
+  </text>
+  <text x="50" y="85" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" fill="#94A3B8">
+    Why open architecture and two-tier rollback redefine Windows system tuning
+  </text>
+
+  <!-- Table Header -->
+  <rect x="50" y="110" width="900" height="45" rx="6" fill="#1E293B"/>
+  <text x="70" y="138" font-family="-apple-system, sans-serif" font-size="14" font-weight="700" fill="#94A3B8">CRITERIA / ARCHITECTURE</text>
+  <text x="420" y="138" font-family="-apple-system, sans-serif" font-size="14" font-weight="700" fill="#EF4444">TYPICAL "FPS BOOST" PACKS</text>
+  <text x="700" y="138" font-family="-apple-system, sans-serif" font-size="14" font-weight="700" fill="#10B981">WIN11 MASTER OPTIMIZER</text>
+
+  <!-- Row 1 -->
+  <g transform="translate(50, 165)">
+    <rect width="900" height="50" fill="#0E1526" rx="4"/>
+    <text x="20" y="30" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#E2E8F0">Source Code Transparency</text>
+    <text x="370" y="30" font-family="-apple-system, sans-serif" font-size="13" fill="#F87171">❌ Closed EXEs / Obfuscated BATs</text>
+    <text x="650" y="30" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#34D399">✅ 100% Readable PowerShell &amp; C#</text>
+  </g>
+
+  <!-- Row 2 -->
+  <g transform="translate(50, 225)">
+    <rect width="900" height="50" fill="#0B101E" rx="4"/>
+    <text x="20" y="30" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#E2E8F0">Safety &amp; Rollback Mechanism</text>
+    <text x="370" y="30" font-family="-apple-system, sans-serif" font-size="13" fill="#F87171">❌ None ("Reinstall Windows to revert")</text>
+    <text x="650" y="30" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#34D399">✅ Restore Point + JSON Snapshots</text>
+  </g>
+
+  <!-- Row 3 -->
+  <g transform="translate(50, 285)">
+    <rect width="900" height="50" fill="#0E1526" rx="4"/>
+    <text x="20" y="30" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#E2E8F0">Standby RAM Management</text>
+    <text x="370" y="30" font-family="-apple-system, sans-serif" font-size="13" fill="#F87171">❌ Suspicious 3rd-party executables</text>
+    <text x="650" y="30" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#34D399">✅ In-memory NT-Kernel P/Invoke</text>
+  </g>
+
+  <!-- Row 4 -->
+  <g transform="translate(50, 345)">
+    <rect width="900" height="50" fill="#0B101E" rx="4"/>
+    <text x="20" y="30" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#E2E8F0">MSI Interrupt Priority</text>
+    <text x="370" y="30" font-family="-apple-system, sans-serif" font-size="13" fill="#F87171">❌ Manual GUI tools or risky batch files</text>
+    <text x="650" y="30" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#34D399">✅ Automated PCI enumeration (GPU/Net)</text>
+  </g>
+
+  <!-- Row 5 -->
+  <g transform="translate(50, 405)">
+    <rect width="900" height="50" fill="#0E1526" rx="4"/>
+    <text x="20" y="30" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#E2E8F0">System Health Audit</text>
+    <text x="370" y="30" font-family="-apple-system, sans-serif" font-size="13" fill="#F87171">❌ Blind execution without status report</text>
+    <text x="650" y="30" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#34D399">✅ 26-Point Live Interactive Audit</text>
+  </g>
+
+  <!-- Row 6 -->
+  <g transform="translate(50, 465)">
+    <rect width="900" height="50" fill="#0B101E" rx="4"/>
+    <text x="20" y="30" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#E2E8F0">Anti-Cheat Compatibility</text>
+    <text x="370" y="30" font-family="-apple-system, sans-serif" font-size="13" fill="#F87171">❌ May trigger Vanguard / EAC / VAC</text>
+    <text x="650" y="30" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#34D399">✅ 100% Whitelisted Windows APIs</text>
+  </g>
+
+  <!-- Footer Banner -->
+  <rect x="50" y="535" width="900" height="48" rx="6" fill="#00D2FF" opacity="0.1"/>
+  <text x="500" y="565" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="14" font-weight="700" fill="#00D2FF">
+    github.com/1hote-ai/win11-master-optimizer • Engineered for Real Competitive Latency
+  </text>
+</svg>

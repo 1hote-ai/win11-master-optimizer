@@ -1,0 +1,73 @@
+name: Bug Report
+description: Report a bug, unexpected error, or failed tweak in Windows 11 Master Optimizer
+title: "[BUG]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! Please ensure you have tested with the latest commit on `launch/preparation` or main branch.
+  - type: input
+    id: os_version
+    attributes:
+      label: Windows 11 Build & Version
+      description: Run `winver` or `[System.Environment]::OSVersion` in PowerShell.
+      placeholder: e.g. Windows 11 Pro 24H2 Build 26100.2161
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Hardware Specifications
+      description: CPU, GPU, and Network Adapter model.
+      placeholder: e.g. Ryzen 7 7800X3D, RTX 4080 Super, Intel I225-V Ethernet
+    validations:
+      required: true
+  - type: dropdown
+    id: module_affected
+    attributes:
+      label: Affected Module / Feature
+      options:
+        - Gaming Latency (MSI Mode / CPU Quanta / RAM Cleaner)
+        - Network Gaming (Nagle / RSS / TCP Stack / DNS)
+        - GPU & Display (MPO / HAGS / DirectX / Shader Clean)
+        - Debloat (Recall / Copilot / Bing / Telemetry / UWP)
+        - System UI (Explorer / Context Menu / USB Power)
+        - Diagnostics / Health Audit
+        - Rollback Engine / Restore Points
+        - Launchers (.bat / elevation)
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the Bug
+      description: A clear and concise description of what went wrong.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this behavior?
+      placeholder: |
+        1. Run .\Win11Optimizer.ps1 -Mode ...
+        2. Select option ...
+        3. See error ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs or Console Output
+      description: Paste any error messages, stack traces, or logs from the `Reports/` folder.
+      render: shell
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmation & Rollback Status
+      options:
+        - label: I verified that the issue persists after running Test-Win11Optimizer.ps1.
+          required: false
+        - label: I was able to successfully revert changes using `-Mode Rollback` or System Restore.
+          required: false
