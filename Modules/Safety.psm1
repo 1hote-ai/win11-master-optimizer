@@ -11,6 +11,44 @@ function Initialize-SafetyModule {
     }
 }
 
+function Test-IsSafetyAdmin {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = [Security.Principal.WindowsPrincipal]$identity
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Invoke-BackupRotation {
+    [CmdletBinding()]
+    param(
+        [int]$MaxBackups = 50,
+        [int]$MaxAgeDays = 30
+    )
+
+    Initialize-SafetyModule
+
+    try {
+        $files = Get-ChildItem -Path $Script:BackupDir -Filter "Backup_*.json" -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending
+
+        if (-not $files -or $files.Count -le $MaxBackups) {
+            return
+        }
+
+        # Оставляем новейшие $MaxBackups файлов, более старые ротируем, если они старше $MaxAgeDays
+        $cutoffDate = (Get-Date).AddDays(-$MaxAgeDays)
+        $excessFiles = $files | Select-Object -Skip $MaxBackups
+
+        foreach ($oldFile in $excessFiles) {
+            if ($oldFile.LastWriteTime -lt $cutoffDate) {
+                Remove-Item -Path $oldFile.FullName -Force -ErrorAction SilentlyContinue
+                Write-Verbose "Ротирован устаревший бэкап: $($oldFile.Name)"
+            }
+        }
+    } catch {
+        Write-Verbose "Предупреждение при ротации резервных копий: $_"
+    }
+}
+
 function New-OptimizerRestorePoint {
     [CmdletBinding()]
     param(
@@ -41,10 +79,15 @@ function New-OptimizerRestorePoint {
             Write-Verbose "Enable-ComputerRestore notice: $_"
         }
 
-        # Обход 24-часового лимита Windows на создание точек восстановления через реестр
+        # Сохранение исходного состояния SystemRestorePointCreationFrequency перед обходом 24ч лимита
         $srKey = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore"
+        $srParam = "SystemRestorePointCreationFrequency"
         if (Test-Path $srKey) {
-            Set-ItemProperty -Path $srKey -Name "SystemRestorePointCreationFrequency" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+            Save-RegistrySnapshot -Category "SystemRestore" -RegistryTargets @(
+                @{ Path = $srKey; Name = $srParam }
+            ) | Out-Null
+
+            Set-ItemProperty -Path $srKey -Name $srParam -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
         }
 
         $timestamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
@@ -58,6 +101,27 @@ function New-OptimizerRestorePoint {
         Write-Host "[Safety] Резервные копии реестра будут сохранены локально в папку Backups." -ForegroundColor Yellow
         return @{ Success = $false; Error = $_.Exception.Message }
     }
+}
+
+function Restore-SystemRestorePointCreationFrequency {
+    [CmdletBinding()]
+    param()
+
+    Initialize-SafetyModule
+    Write-Host "[Safety] Восстановление исходного состояния SystemRestorePointCreationFrequency..." -ForegroundColor Yellow
+    $res = Restore-RegistrySnapshot -Category "SystemRestore"
+    if ($res.Success) {
+        Write-Host "[Safety] Параметр частоты контрольных точек возвращен к исходному состоянию." -ForegroundColor Green
+    } else {
+        # Если снимка не было (дефолт Windows) - удаляем параметр
+        $srKey = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore"
+        $srParam = "SystemRestorePointCreationFrequency"
+        if (Test-Path $srKey) {
+            Remove-ItemProperty -Path $srKey -Name $srParam -ErrorAction SilentlyContinue
+            Write-Host "[Safety] Параметр SystemRestorePointCreationFrequency удален (заводской дефолт Windows)." -ForegroundColor Green
+        }
+    }
+    return $res
 }
 
 function Save-RegistrySnapshot {
@@ -75,6 +139,7 @@ function Save-RegistrySnapshot {
     }
 
     Initialize-SafetyModule
+    Invoke-BackupRotation
 
     $timestamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
     $backupFileName = "Backup_${Category}_$timestamp.json"
@@ -143,85 +208,192 @@ function Restore-RegistrySnapshot {
 
     Initialize-SafetyModule
 
+    $result = [PSCustomObject]@{
+        Success       = $false
+        RestoredCount = 0
+        FailedCount   = 0
+        TotalCount    = 0
+        RestoredItems = @()
+        FailedItems   = @()
+        Errors        = @()
+        TargetFile    = $null
+        Message       = ""
+    }
+
     $targetFile = $null
 
     if (-not [string]::IsNullOrWhiteSpace($BackupFilePath) -and (Test-Path $BackupFilePath)) {
         $targetFile = $BackupFilePath
     } elseif (-not [string]::IsNullOrWhiteSpace($Category)) {
         # Ищем самый свежий бэкап категории
-        $files = Get-ChildItem -Path $Script:BackupDir -Filter "Backup_${Category}_*.json" | Sort-Object LastWriteTime -Descending
-        if ($files.Count -gt 0) {
+        $files = Get-ChildItem -Path $Script:BackupDir -Filter "Backup_${Category}_*.json" -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending
+        if ($files -and $files.Count -gt 0) {
             $targetFile = $files[0].FullName
         }
     } else {
         # Ищем самый свежий бэкап вообще
-        $files = Get-ChildItem -Path $Script:BackupDir -Filter "Backup_*.json" | Sort-Object LastWriteTime -Descending
-        if ($files.Count -gt 0) {
+        $files = Get-ChildItem -Path $Script:BackupDir -Filter "Backup_*.json" -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending
+        if ($files -and $files.Count -gt 0) {
             $targetFile = $files[0].FullName
         }
     }
 
     if (-not $targetFile -or -not (Test-Path $targetFile)) {
-        Write-Host "[Safety WARNING] Файл резервной копии не найден." -ForegroundColor Yellow
-        return $false
+        $msg = "[Safety WARNING] Файл резервной копии не найден" + $(if ($Category) { " для категории '$Category'" } else { "" }) + "."
+        Write-Host $msg -ForegroundColor Yellow
+        $result.Message = $msg
+        $result.Errors += $msg
+        return $result
     }
 
+    $result.TargetFile = $targetFile
     Write-Host "[Safety] Откат из снимка: $(Split-Path $targetFile -Leaf)..." -ForegroundColor Yellow
-    $rawJson = [System.IO.File]::ReadAllText($targetFile, [System.Text.Encoding]::UTF8)
-    $payload = $rawJson | ConvertFrom-Json
 
-    $restoredCount = 0
+    # Валидация содержимого JSON файла
+    $rawJson = $null
+    $payload = $null
+    try {
+        $rawJson = [System.IO.File]::ReadAllText($targetFile, [System.Text.Encoding]::UTF8)
+        $payload = $rawJson | ConvertFrom-Json
+        if (-not $payload -or $null -eq $payload.Entries) {
+            throw "Некорректная структура файла резервной копии (отсутствует поле Entries)"
+        }
+    } catch {
+        $msg = "[Safety ERROR] Файл резервной копии поврежден или имеет неверный формат: $($_.Exception.Message)"
+        Write-Host $msg -ForegroundColor Red
+        $result.Message = $msg
+        $result.Errors += $msg
+        return $result
+    }
+
+    $result.TotalCount = $payload.Entries.Count
+
+    if ($result.TotalCount -eq 0) {
+        $msg = "[Safety] Снимок пуст, восстанавливать нечего."
+        Write-Host $msg -ForegroundColor Yellow
+        $result.Success = $true
+        $result.Message = $msg
+        return $result
+    }
+
+    $isAdmin = Test-IsSafetyAdmin
+    $restoredList = [System.Collections.Generic.List[PSObject]]::new()
+    $failedList   = [System.Collections.Generic.List[PSObject]]::new()
+    $errorList    = [System.Collections.Generic.List[string]]::new()
 
     foreach ($entry in $payload.Entries) {
         $path = $entry.Path
         $name = $entry.Name
 
+        # Проверка прав: запись в HKLM требует прав администратора
+        if ($path -like "HKLM:*" -and -not $isAdmin) {
+            $errMsg = "Требуются права Администратора для записи в $path"
+            $failedList.Add([PSCustomObject]@{
+                Path   = $path
+                Name   = $name
+                Error  = $errMsg
+                Action = "PrivilegeCheck"
+            })
+            $errorList.Add("$path\${name}: $errMsg")
+            Write-Host "  [FAIL] $path\${name}: $errMsg" -ForegroundColor Red
+            continue
+        }
+
         try {
             if (-not $entry.KeyExists) {
                 # Ключа раньше не существовало — удаляем созданное значение, и если ключ стал пуст — удаляем ключ
                 if (Test-Path $path) {
-                    Remove-ItemProperty -Path $path -Name $name -ErrorAction SilentlyContinue
+                    Remove-ItemProperty -Path $path -Name $name -ErrorAction Stop
                     $keyItem = Get-Item -Path $path -ErrorAction SilentlyContinue
                     if ($keyItem -and $keyItem.ValueCount -eq 0 -and $keyItem.SubKeyCount -eq 0) {
-                        Remove-Item -Path $path -Force -ErrorAction SilentlyContinue
+                        Remove-Item -Path $path -Force -ErrorAction Stop
                     }
                 }
             } elseif (-not $entry.ValueExists) {
                 # Ключ был, но значения не было — удаляем добавленное значение
                 if (Test-Path $path) {
-                    Remove-ItemProperty -Path $path -Name $name -ErrorAction SilentlyContinue
+                    $prop = Get-ItemProperty -Path $path -Name $name -ErrorAction SilentlyContinue
+                    if ($prop -and $null -ne $prop.$name) {
+                        Remove-ItemProperty -Path $path -Name $name -ErrorAction Stop
+                    }
                 }
             } else {
                 # Значение было — восстанавливаем исходное значение и тип
                 if (-not (Test-Path $path)) {
-                    New-Item -Path $path -Force | Out-Null
+                    New-Item -Path $path -Force -ErrorAction Stop | Out-Null
                 }
 
                 $regType = "String"
                 switch ($entry.Type) {
-                    "DWord"    { $regType = "DWord" }
-                    "QWord"    { $regType = "QWord" }
-                    "Binary"   { $regType = "Binary" }
-                    "MultiString" { $regType = "MultiString" }
+                    "DWord"        { $regType = "DWord" }
+                    "QWord"        { $regType = "QWord" }
+                    "Binary"       { $regType = "Binary" }
+                    "MultiString"  { $regType = "MultiString" }
                     "ExpandString" { $regType = "ExpandString" }
-                    default    { $regType = "String" }
+                    default        { $regType = "String" }
                 }
 
                 Set-ItemProperty -Path $path -Name $name -Value $entry.Value -Type $regType -Force -ErrorAction Stop
+
+                # Верификация записи
+                $verify = Get-ItemProperty -Path $path -Name $name -ErrorAction Stop
+                if ($null -eq $verify -or $null -eq $verify.$name) {
+                    throw "Верификация не удалась: параметр не обнаружен после записи"
+                }
             }
-            $restoredCount++
+
+            $restoredList.Add([PSCustomObject]@{
+                Path  = $path
+                Name  = $name
+                Type  = $entry.Type
+                Value = $entry.Value
+            })
         } catch {
-            Write-Verbose "Error restoring $($entry.Path)\$($entry.Name): $_"
+            $errText = $_.Exception.Message
+            $failedList.Add([PSCustomObject]@{
+                Path   = $path
+                Name   = $name
+                Error  = $errText
+                Action = "RestoreEntry"
+            })
+            $errorList.Add("$path\${name}: $errText")
+            Write-Host "  [FAIL] $path\${name}: $errText" -ForegroundColor Red
         }
     }
 
-    Write-Host "[Safety] Успешно восстановлено параметров: $restoredCount из $($payload.Entries.Count)" -ForegroundColor Green
-    return $true
+    $result.RestoredCount = $restoredList.Count
+    $result.FailedCount   = $failedList.Count
+    $result.RestoredItems = $restoredList.ToArray()
+    $result.FailedItems   = $failedList.ToArray()
+    $result.Errors        = $errorList.ToArray()
+
+    if ($result.FailedCount -eq 0 -and $result.RestoredCount -gt 0) {
+        $result.Success = $true
+        $result.Message = "Успешно восстановлено параметров: $($result.RestoredCount) из $($result.TotalCount)"
+        Write-Host "[Safety] $($result.Message)" -ForegroundColor Green
+    } elseif ($result.RestoredCount -gt 0 -and $result.FailedCount -gt 0) {
+        $result.Success = $false
+        $result.Message = "Откат выполнен ЧАСТИЧНО: успешно $($result.RestoredCount), сбоев $($result.FailedCount) из $($result.TotalCount)"
+        Write-Host "[Safety WARNING] $($result.Message)" -ForegroundColor Yellow
+        Write-Host "[Safety] Не удалось восстановить следующие параметры:" -ForegroundColor Yellow
+        foreach ($f in $result.FailedItems) {
+            Write-Host "   - $($f.Path)\$($f.Name): $($f.Error)" -ForegroundColor Yellow
+        }
+    } else {
+        $result.Success = $false
+        $result.Message = "Откат завершился ошибкой: не удалось восстановить ни один параметр ($($result.FailedCount) сбоев)"
+        Write-Host "[Safety ERROR] $($result.Message)" -ForegroundColor Red
+    }
+
+    return $result
 }
 
 function Get-BackupHistory {
     Initialize-SafetyModule
-    $files = Get-ChildItem -Path $Script:BackupDir -Filter "Backup_*.json" | Sort-Object LastWriteTime -Descending
+    $files = Get-ChildItem -Path $Script:BackupDir -Filter "Backup_*.json" -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending
     $history = @()
     foreach ($file in $files) {
         try {
@@ -237,7 +409,7 @@ function Get-BackupHistory {
             # Skip invalid files
         }
     }
-    return $history
+    return ,@($history)
 }
 
-Export-ModuleMember -Function New-OptimizerRestorePoint, Save-RegistrySnapshot, Restore-RegistrySnapshot, Get-BackupHistory
+Export-ModuleMember -Function New-OptimizerRestorePoint, Restore-SystemRestorePointCreationFrequency, Save-RegistrySnapshot, Restore-RegistrySnapshot, Get-BackupHistory, Invoke-BackupRotation

@@ -15,9 +15,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - Full Command-Line Interface (CLI) support with `-Mode` parameters (`AutoGaming`, `HealthCheck`, `RamClean`, `DnsBenchmark`, `GpuOnly`, `LowLatency`, `SafeDebloat`, `Rollback`).
   - Universal `-DryRun` switch for previewing all registry and command alterations without writing to disk or registry.
 - **Safety & Rollback Engine (`Safety.psm1`):**
-  - Automated Windows System Restore Point creation with `SystemRestorePointCreationFrequency = 0` bypass.
+  - Granular `RollbackResult` structured object (`Success`, `RestoredCount`, `FailedCount`, `TotalCount`, `RestoredItems`, `FailedItems`, `Errors`, `TargetFile`, `Message`) replacing primitive booleans.
+  - Strict per-parameter isolation: every registry parameter is restored independently; write verification confirms property existence; partial failures are explicitly logged and cause `Success = $false`.
+  - Windows System Restore Point creation with pre-snapshot of `SystemRestorePointCreationFrequency` (eliminating permanent registry alteration; restored or removed via `Restore-SystemRestorePointCreationFrequency`).
+  - Automated backup rotation (`Invoke-BackupRotation`) preserving the 50 most recent snapshots and pruning stale backups.
   - Granular JSON registry snapshot engine capturing key presence, value presence, original values, and exact .NET registry value kinds (`DWord`, `QWord`, `Binary`, `MultiString`, `ExpandString`, `String`).
   - Pruning of empty newly created subkeys upon snapshot rollback.
+  - Official MIT License formalization (`LICENSE`) with copyright 2026 1hote-ai.
 - **Gaming Latency & Memory (`GamingLatency.psm1`):**
   - Native in-memory NT-kernel Standby RAM Cleaner using `ntdll!NtSetSystemInformation(80, ref 4)` and `advapi32!AdjustTokenPrivileges` (`SeProfileSingleProcessPrivilege`).
   - Automated PCI device scanning and MSI Mode (Message Signaled Interrupts) migration for GPU, Network, and Audio devices with `DevicePriority = 3 (High)`.
@@ -56,7 +60,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - Silent Winget package installer with 25 curated tools across utilities, gaming latency, launchers, communication, and runtimes.
 - **Launchers & Testing:**
   - Modernized `Start.bat`, `Start-Optimizer.bat`, and `Запустить Оптимизатор.bat` with UTF-8 encoding (`chcp 65001`) and robust relative path resolution.
-  - Automated smoke test suite (`Test-Win11Optimizer.ps1`) covering 34 assertions with exit code 0 validation.
+  - Automated smoke and integrity test suite (`Test-Win11Optimizer.ps1`) covering 42 assertions with exit code 0 validation.
 
 ---
 

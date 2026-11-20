@@ -98,7 +98,8 @@ Assert-Test "Safety: Snapshot & Rollback integrity test" {
 
     # Restore
     $restored = Restore-RegistrySnapshot -Category "UnitTest" -BackupFilePath $snapFile
-    if (-not $restored) { return $false }
+    if (-not $restored.Success) { return $false }
+    if ($restored.RestoredCount -ne 2 -or $restored.FailedCount -ne 0) { return $false }
 
     $p1 = (Get-ItemProperty -Path $testKey).OriginalVal
     $p2 = (Get-ItemProperty -Path $testKey -ErrorAction SilentlyContinue).NonExistentVal
@@ -125,14 +126,167 @@ Assert-Test "Safety: Cleanup of empty newly-created subkeys on rollback" {
     Set-ItemProperty -Path $childKey -Name "TestSetting" -Value 1 -Type DWord -Force
 
     # Restore
-    Restore-RegistrySnapshot -Category "SubkeyTest" -BackupFilePath $snapFile | Out-Null
+    $restored = Restore-RegistrySnapshot -Category "SubkeyTest" -BackupFilePath $snapFile
     
     # Child key should now be completely deleted
     $childStillExists = Test-Path $childKey
     Remove-Item -Path $parentKey -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -Path $snapFile -Force -ErrorAction SilentlyContinue
 
-    return (-not $childStillExists)
+    return ($restored.Success -and -not $childStillExists)
+}
+
+Assert-Test "Safety: Granular RollbackResult structure and failure isolation on partial fail" {
+    $testKey = "HKCU:\Software\Win11Opt_PartialTest_$(Get-Random)"
+    New-Item -Path $testKey -Force | Out-Null
+    Set-ItemProperty -Path $testKey -Name "ValidParam" -Value 100 -Type DWord -Force
+
+    $backupDir = Join-Path $ScriptDir "Backups"
+    if (-not (Test-Path $backupDir)) {
+        New-Item -Path $backupDir -ItemType Directory -Force | Out-Null
+    }
+    $mockFile = Join-Path $backupDir "Backup_PartialTest_Mock.json"
+
+    # Create synthetic snapshot with 1 valid entry and 1 invalid entry (non-existent drive to guarantee isolated catch)
+    $mockPayload = [PSCustomObject]@{
+        Category  = "PartialTest"
+        Timestamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
+        Entries   = @(
+            [PSCustomObject]@{
+                Path        = $testKey
+                Name        = "ValidParam"
+                KeyExists   = $true
+                ValueExists = $true
+                Type        = "DWord"
+                Value       = 100
+            },
+            [PSCustomObject]@{
+                Path        = "NonExistentDrive:\BogusKey"
+                Name        = "DeniedParam"
+                KeyExists   = $true
+                ValueExists = $true
+                Type        = "DWord"
+                Value       = 1
+            }
+        )
+    }
+
+    $mockPayload | ConvertTo-Json -Depth 5 | Set-Content -Path $mockFile -Encoding UTF8
+
+    # Mutate valid parameter
+    Set-ItemProperty -Path $testKey -Name "ValidParam" -Value 999 -Type DWord -Force
+
+    $res = Restore-RegistrySnapshot -Category "PartialTest" -BackupFilePath $mockFile
+    $restoredValid = (Get-ItemProperty -Path $testKey).ValidParam
+
+    # Cleanup
+    Remove-Item -Path $testKey -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $mockFile -Force -ErrorAction SilentlyContinue
+
+    # Verification:
+    # 1. Overall Success is false because of the 1 failed entry
+    # 2. RestoredCount is 1 (the valid one succeeded)
+    # 3. FailedCount >= 1
+    # 4. ValidParam in registry was actually restored to 100
+    return ($res.Success -eq $false -and $res.RestoredCount -eq 1 -and $res.FailedCount -ge 1 -and $restoredValid -eq 100 -and $res.FailedItems.Count -ge 1)
+}
+
+Assert-Test "Safety: Granular RollbackResult structure on missing snapshot file" {
+    $res = Restore-RegistrySnapshot -Category "NonExistentCategory_XYZ_Random_99"
+    return ($res.Success -eq $false -and $res.TotalCount -eq 0 -and ($res.Message -match "не найден"))
+}
+
+Assert-Test "Safety: Corrupted Snapshot JSON handling" {
+    $backupDir = Join-Path $ScriptDir "Backups"
+    if (-not (Test-Path $backupDir)) {
+        New-Item -Path $backupDir -ItemType Directory -Force | Out-Null
+    }
+    $corruptFile = Join-Path $backupDir "Backup_CorruptTest_Mock.json"
+    Set-Content -Path $corruptFile -Value "{ Invalid JSON syntax !!!" -Encoding UTF8
+
+    $res = Restore-RegistrySnapshot -Category "CorruptTest" -BackupFilePath $corruptFile
+    Remove-Item -Path $corruptFile -Force -ErrorAction SilentlyContinue
+
+    return ($res.Success -eq $false -and ($res.Message -match "поврежден") -and $res.Errors.Count -ge 1)
+}
+
+Assert-Test "Safety: Comprehensive Registry Types preservation (DWord, QWord, String, MultiString, ExpandString, Binary)" {
+    $typesKey = "HKCU:\Software\Win11Opt_TypesTest_$(Get-Random)"
+    New-Item -Path $typesKey -Force | Out-Null
+
+    Set-ItemProperty -Path $typesKey -Name "T_DWord" -Value 42 -Type DWord -Force
+    Set-ItemProperty -Path $typesKey -Name "T_QWord" -Value 9876543210 -Type QWord -Force
+    Set-ItemProperty -Path $typesKey -Name "T_String" -Value "OptimizerString" -Type String -Force
+    Set-ItemProperty -Path $typesKey -Name "T_Expand" -Value "%SYSTEMROOT%\Optimizer" -Type ExpandString -Force
+    Set-ItemProperty -Path $typesKey -Name "T_Multi" -Value @("ValueA", "ValueB") -Type MultiString -Force
+    Set-ItemProperty -Path $typesKey -Name "T_Binary" -Value ([byte[]]@(0xDE, 0xAD, 0xBE, 0xEF)) -Type Binary -Force
+
+    $targets = @(
+        @{ Path = $typesKey; Name = "T_DWord" },
+        @{ Path = $typesKey; Name = "T_QWord" },
+        @{ Path = $typesKey; Name = "T_String" },
+        @{ Path = $typesKey; Name = "T_Expand" },
+        @{ Path = $typesKey; Name = "T_Multi" },
+        @{ Path = $typesKey; Name = "T_Binary" }
+    )
+
+    $snapFile = Save-RegistrySnapshot -Category "TypesTest" -RegistryTargets $targets
+    if (-not (Test-Path $snapFile)) { return $false }
+
+    # Mutate all values
+    Set-ItemProperty -Path $typesKey -Name "T_DWord" -Value 0 -Type DWord -Force
+    Set-ItemProperty -Path $typesKey -Name "T_QWord" -Value 0 -Type QWord -Force
+    Set-ItemProperty -Path $typesKey -Name "T_String" -Value "Mutated" -Type String -Force
+    Set-ItemProperty -Path $typesKey -Name "T_Expand" -Value "Mutated" -Type ExpandString -Force
+    Set-ItemProperty -Path $typesKey -Name "T_Multi" -Value @("Mutated") -Type MultiString -Force
+    Set-ItemProperty -Path $typesKey -Name "T_Binary" -Value ([byte[]]@(0x00)) -Type Binary -Force
+
+    # Restore
+    $res = Restore-RegistrySnapshot -Category "TypesTest" -BackupFilePath $snapFile
+    if (-not $res.Success -or $res.RestoredCount -ne 6) { return $false }
+
+    $p = Get-ItemProperty -Path $typesKey
+    $matchDWord = ($p.T_DWord -eq 42)
+    $matchQWord = ($p.T_QWord -eq 9876543210)
+    $matchString = ($p.T_String -eq "OptimizerString")
+    $matchExpand = ($p.T_Expand -like "*\Optimizer")
+    $matchMulti = (($p.T_Multi -join ",") -eq "ValueA,ValueB")
+    $matchBinary = (([System.BitConverter]::ToString($p.T_Binary)) -eq "DE-AD-BE-EF")
+
+    # Cleanup
+    Remove-Item -Path $typesKey -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $snapFile -Force -ErrorAction SilentlyContinue
+
+    return ($matchDWord -and $matchQWord -and $matchString -and $matchExpand -and $matchMulti -and $matchBinary)
+}
+
+Assert-Test "Safety: SystemRestorePointCreationFrequency snapshot and restoration routine" {
+    $cmdNew = Get-Command New-OptimizerRestorePoint -ErrorAction SilentlyContinue
+    $cmdRest = Get-Command Restore-SystemRestorePointCreationFrequency -ErrorAction SilentlyContinue
+    if (-not $cmdNew -or -not $cmdRest) { return $false }
+
+    $res = Restore-SystemRestorePointCreationFrequency
+    return ($null -ne $res)
+}
+
+Assert-Test "Safety: Automatic Backup Rotation mechanics" {
+    $cmd = Get-Command Invoke-BackupRotation -ErrorAction SilentlyContinue
+    if (-not $cmd) { return $false }
+
+    Invoke-BackupRotation -MaxBackups 100 -MaxAgeDays 60
+    return $true
+}
+
+Assert-Test "Safety: Administrator privilege check returns boolean" {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = [Security.Principal.WindowsPrincipal]$identity
+    $isAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    return ($isAdmin -is [bool])
+}
+
+Assert-Test "Safety: Get-BackupHistory returns valid backup catalog array" {
+    $hist = @(Get-BackupHistory)
+    return ($null -ne $hist -and ($hist -is [System.Array]))
 }
 
 # 3. Hardware Query Tests (GPU, Net, AND Audio Sound Cards)

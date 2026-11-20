@@ -57,6 +57,7 @@ $itemsToCopy = @(
     "Start.bat",
     "Start-Optimizer.bat",
     "Запустить Оптимизатор.bat",
+    "LICENSE",
     "README.md",
     "README.ru.md",
     "CONTRIBUTING.md",

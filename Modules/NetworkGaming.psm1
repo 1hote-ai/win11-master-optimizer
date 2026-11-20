@@ -163,7 +163,7 @@ function Restore-GamingNetworkStack {
     
     $restored = Restore-RegistrySnapshot -Category "NetworkStack"
 
-    if (-not $restored) {
+    if (-not $restored.Success) {
         $interfaceGuids = Get-ActiveNetworkInterfaceGuids
         $baseKey = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces"
 
@@ -600,7 +600,7 @@ function Restore-GamingDns {
 
     Write-Host "[DNS Switcher] Откат настроек DNS к исходному состоянию..." -ForegroundColor Yellow
     $restored = Restore-RegistrySnapshot -Category "DnsSettings"
-    if ($restored) {
+    if ($restored.Success) {
         Clear-DnsClientCache
         Write-Host "  [OK] Настройки DNS успешно восстановлены из снимка реестра." -ForegroundColor Green
         return $true

@@ -150,7 +150,7 @@ function Restore-GamingMsiMode {
 
     Write-Host "[MSI Optimizer] Откат настроек MSI Mode к исходным..." -ForegroundColor Yellow
     $restored = Restore-RegistrySnapshot -Category "MSIMode"
-    if (-not $restored) {
+    if (-not $restored.Success) {
         Write-Host "[MSI Optimizer WARNING] Снимок реестра не найден. Оставляем текущую конфигурацию драйверов." -ForegroundColor Yellow
     }
 }
@@ -257,7 +257,7 @@ function Restore-CpuGamingScheduling {
     Write-Host "[CPU Optimization] Откат параметров CPU к дефолту..." -ForegroundColor Yellow
     $restored = Restore-RegistrySnapshot -Category "CpuScheduling"
     
-    if (-not $restored) {
+    if (-not $restored.Success) {
         # Если снимка не было, возвращаем стандартные дефолты Windows
         Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" -Name "Win32PrioritySeparation" -Value 2 -Type DWord -Force -ErrorAction SilentlyContinue
         Remove-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling" -Name "PowerThrottlingOff" -ErrorAction SilentlyContinue
@@ -325,13 +325,15 @@ function Restore-SystemResponsiveness {
     param()
 
     Write-Host "[System Responsiveness] Откат SystemResponsiveness..." -ForegroundColor Yellow
-    Restore-RegistrySnapshot -Category "SystemResponsiveness"
+    $restored = Restore-RegistrySnapshot -Category "SystemResponsiveness"
     
-    # Восстановление дефолтов
-    $sysProfile = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
-    Set-ItemProperty -Path $sysProfile -Name "SystemResponsiveness" -Value 20 -Type DWord -Force -ErrorAction SilentlyContinue
-    Set-ItemProperty -Path $sysProfile -Name "NetworkThrottlingIndex" -Value 10 -Type DWord -Force -ErrorAction SilentlyContinue
-    Write-Host "[System Responsiveness] Восстановлены стандартные значения Windows (20/10)." -ForegroundColor Green
+    # Восстановление дефолтов только если снимка не было
+    if (-not $restored.Success) {
+        $sysProfile = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
+        Set-ItemProperty -Path $sysProfile -Name "SystemResponsiveness" -Value 20 -Type DWord -Force -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $sysProfile -Name "NetworkThrottlingIndex" -Value 10 -Type DWord -Force -ErrorAction SilentlyContinue
+        Write-Host "[System Responsiveness] Восстановлены стандартные значения Windows (20/10)." -ForegroundColor Green
+    }
 }
 
 function Get-VbsStatus {

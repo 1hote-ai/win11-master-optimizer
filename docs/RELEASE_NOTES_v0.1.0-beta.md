@@ -36,7 +36,7 @@ Welcome to the first public beta of **Windows 11 Master Optimizer**! This releas
 - `Start.bat` & `Start-Optimizer.bat`: Multi-entry launchers supporting UTF-8 (`chcp 65001`), UAC automatic elevation, and relative path resolution.
 
 ### 3. Automated Test Suite
-- `Test-Win11Optimizer.ps1`: Automated test harness running 34 assertions verifying module loading, snapshot creation, rollback integrity, and dry-run execution with Exit Code 0.
+- `Test-Win11Optimizer.ps1`: Automated test harness running 42 assertions verifying module loading, snapshot creation, granular rollback integrity, hardware enumeration, and dry-run execution with Exit Code 0.
 
 ---
 
@@ -63,7 +63,7 @@ Release archives built via `tools/Build-ReleasePackage.ps1` include automated SH
 
 | Asset Name | Size | SHA-256 Checksum |
 | :--- | :--- | :--- |
-| `win11-master-optimizer-v0.1.0-beta.zip` | 172.26 KB | `DE001F3B5AC7BCBF9C0CBDF6A00C89527D334922EDADC8FFE866248AEECB6D6D` |
+| `win11-master-optimizer-v0.1.0-beta.zip` | 177.34 KB | `607B12DF27076FD91581ECA27EABDFD82BC29E516BF22B9DAAB82911E30C8A4C` |
 
 *To verify checksum in PowerShell:*
 ```powershell

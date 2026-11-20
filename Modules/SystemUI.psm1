@@ -324,7 +324,7 @@ function Restore-WindowsAutomaticMaintenance {
 
     Write-Host "[Maintenance] Откат настройки автоматического обслуживания..." -ForegroundColor Yellow
     $restored = Restore-RegistrySnapshot -Category "Maintenance"
-    if (-not $restored) {
+    if (-not $restored.Success) {
         Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\Maintenance" -Name "MaintenanceDisabled" -ErrorAction SilentlyContinue
         Write-Host "[Maintenance] MaintenanceDisabled удален (дефолт Windows)." -ForegroundColor Green
     }
@@ -397,13 +397,15 @@ function Restore-SystemUISettings {
 
     Write-Host "[SystemUI] Откат настроек Проводника и GameDVR к дефолту..." -ForegroundColor Yellow
     Restore-RegistrySnapshot -Category "ExplorerUI"
-    Restore-RegistrySnapshot -Category "GameDVR"
+    $resDVR = Restore-RegistrySnapshot -Category "GameDVR"
     Restore-RegistrySnapshot -Category "Maintenance"
     Restore-RegistrySnapshot -Category "ExplorerHome"
 
-    # Восстановление дефолтов GameDVR
-    $gcs = "HKCU:\System\GameConfigStore"
-    Set-ItemProperty -Path $gcs -Name "GameDVR_Enabled" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+    # Восстановление дефолтов GameDVR только если снимок не сработал
+    if (-not $resDVR.Success) {
+        $gcs = "HKCU:\System\GameConfigStore"
+        Set-ItemProperty -Path $gcs -Name "GameDVR_Enabled" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+    }
     
     # Сброс контекстного меню на стандартное Win11
     Set-ClassicContextMenu -Enable $false -NoRestart

@@ -10,8 +10,8 @@
 [![OS - Windows 11 24H2 Ready](https://img.shields.io/badge/OS-Windows%2011%20(22H2%20--%2024H2)-00D2FF?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/1hote-ai/win11-master-optimizer)
 [![Engine - PowerShell & C# P/Invoke](https://img.shields.io/badge/Engine-PowerShell%20%2B%20NT--Kernel%20P%2FInvoke-10B981?style=for-the-badge&logo=powershell&logoColor=white)](https://github.com/1hote-ai/win11-master-optimizer)
 [![Safety - 2-Tier Rollback Engine](https://img.shields.io/badge/Safety-2--Tier%20Rollback%20Engine-6366F1?style=for-the-badge&logo=shield&logoColor=white)](docs/SAFETY_AUDIT.md)
-[![Tests - 34/34 Passing](https://img.shields.io/badge/Tests-34%2F34%20Passing-34D399?style=for-the-badge&logo=checkmarx&logoColor=white)](Test-Win11Optimizer.ps1)
-[![License Choice - MIT / Apache / GPL](https://img.shields.io/badge/License%20Choice-Review%20Pending-F59E0B?style=for-the-badge&logo=open-source-initiative&logoColor=white)](docs/LICENSE_COMPARISON.md)
+[![Tests - 42/42 Passing](https://img.shields.io/badge/Tests-42%2F42%20Passing-34D399?style=for-the-badge&logo=checkmarx&logoColor=white)](Test-Win11Optimizer.ps1)
+[![License - MIT](https://img.shields.io/badge/License-MIT-3B82F6?style=for-the-badge&logo=open-source-initiative&logoColor=white)](LICENSE)
 
 [English](README.md) • [Русский](README.ru.md) • [Documentation](docs/PRODUCT_PASSPORT.md) • [Safety Audit](docs/SAFETY_AUDIT.md) • [Topics & SEO](docs/GITHUB_TOPICS.md) • [Bug Report](https://github.com/1hote-ai/win11-master-optimizer/issues/new/choose)
 
@@ -37,7 +37,7 @@ Unlike legacy "black box" tweakers and opaque batch scripts from the 2010s that 
 ```
 win11-master-optimizer/
 ├── Win11Optimizer.ps1             # Main Orchestrator (TUI Menu & CLI Engine)
-├── Test-Win11Optimizer.ps1        # Automated Test Suite (34 automated assertions)
+├── Test-Win11Optimizer.ps1        # Automated Test Suite (42 automated assertions)
 ├── Start.bat / Start-Optimizer.bat # Clean Elevation Launchers (UTF-8, UAC Auto-Elevation)
 ├── Modules/
 │   ├── Safety.psm1                # System Restore Points, JSON Snapshots & Rollback
@@ -197,7 +197,7 @@ Your system's stability is our highest priority:
 
 ## 🧪 Verification & Automated Testing
 
-This repository includes an automated test suite with 34 assertions verifying module loading, snapshot creation, rollback integrity, hardware enumeration, and dry-run execution:
+This repository includes an automated test suite with 42 assertions verifying module loading, snapshot creation, granular rollback integrity, hardware enumeration, and dry-run execution:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\Test-Win11Optimizer.ps1
@@ -213,7 +213,7 @@ powershell -ExecutionPolicy Bypass -File .\Test-Win11Optimizer.ps1
   Testing [RAM Cleaner: SeProfileSingleProcessPrivilege helper]... [PASS]
   Testing [Diagnostics: Comprehensive optimization audit (26 settings)]... [PASS]
 ========================================================
-  TEST RESULTS: Passed: 34 | Failed: 0
+  TEST RESULTS: Passed: 42 | Failed: 0
 ========================================================
 ```
 
@@ -242,7 +242,7 @@ powershell -ExecutionPolicy Bypass -File .\Test-Win11Optimizer.ps1
 <details>
 <summary><b>How do I completely undo everything?</b></summary>
 
-Launch `Win11Optimizer.ps1 -Mode Rollback` and select option `[7] Full Rollback to Windows Defaults`. It reads your original JSON snapshots and resets all modified keys and network stacks back to standard Windows defaults.
+Launch `Win11Optimizer.ps1 -Mode Rollback` and select option `[8] Full Rollback to Windows Defaults`. It reads your original JSON snapshots, validates each entry independently, and resets all modified keys and network stacks back to standard Windows defaults.
 </details>
 
 ---
@@ -251,8 +251,8 @@ Launch `Win11Optimizer.ps1 -Mode Rollback` and select option `[7] Full Rollback 
 
 - [x] Windows 11 24H2 full compatibility
 - [x] NT-Kernel in-memory Standby RAM Cleaner
-- [x] 2-Tier Snapshot & Rollback Engine
-- [x] Automated 34-assertion Smoke Test Suite
+- [x] Granular 2-Tier Snapshot & Rollback Engine with per-parameter tracking
+- [x] Automated 42-assertion Smoke & Integrity Test Suite
 - [x] Anycast DNS Benchmark & DoH Switcher
 - [ ] Exportable HTML/JSON Health Audit Reports
 - [ ] Automated LatencyMon integration for pre/post DPC telemetry
@@ -269,4 +269,5 @@ We welcome contributions from developers, testers, and system enthusiasts! Pleas
 
 ## ⚖ License
 
-License selection is currently under review by the repository owner. A comprehensive comparison of **MIT**, **Apache 2.0**, and **GPL-3.0** is available in [docs/LICENSE_COMPARISON.md](docs/LICENSE_COMPARISON.md).
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.  
+Copyright (c) 2026 1hote-ai.

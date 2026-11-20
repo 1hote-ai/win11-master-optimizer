@@ -19,7 +19,7 @@
 ```
 win11-master-optimizer/
 ├── Win11Optimizer.ps1             # Main Orchestrator (CLI & Interactive TUI)
-├── Test-Win11Optimizer.ps1        # Automated Test Suite (34 assertions)
+├── Test-Win11Optimizer.ps1        # Automated Test Suite (42 assertions)
 ├── Start.bat / Start-Optimizer.bat # Multi-entry Elevation Launchers (UTF-8, UAC)
 ├── Запустить Оптимизатор.bat      # Native RU Elevation Launcher (UTF-8)
 ├── Modules/
@@ -60,14 +60,16 @@ win11-master-optimizer/
 
 ### 3.1. Safety and System Restore Reliability
 - **Prior Remark:** Windows 10/11 defaults to throttling restore points to at most once per 24 hours via `SystemRestorePointCreationFrequency`. If a script calls `Checkpoint-Computer` without overriding this, subsequent runs silently fail to create a restore point.
-- **Audited Implementation:** `Safety.psm1` explicitly overrides `HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore\SystemRestorePointCreationFrequency` to `0`, ensuring every optimizer run can generate a valid restore point. Furthermore, `Enable-ComputerRestore` ensures system drive protection is enabled, and the fallback JSON snapshot system logs all keys to disk regardless of VSS service health.
+- **Audited Implementation:** `Safety.psm1` captures the initial state of `HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore\SystemRestorePointCreationFrequency` into a JSON snapshot before setting it to `0`, ensuring every optimizer run can generate a valid restore point without permanent side-effects. During rollback, `Restore-SystemRestorePointCreationFrequency` returns the setting to its original value or removes it if it was not present. Furthermore, `Enable-ComputerRestore` ensures system drive protection is enabled, and the fallback JSON snapshot system logs all keys to disk regardless of VSS service health.
 
 ### 3.2. Registry Rollback Engine
-- **Prior Remark:** Many optimizers save keys but leave newly created subkeys behind on rollback, or fail to restore proper types (e.g. converting `QWord` or `Binary` to `String`).
-- **Audited Implementation:** `Restore-RegistrySnapshot` handles three distinct rollback states:
+- **Prior Remark:** Many optimizers save keys but leave newly created subkeys behind on rollback, fail to restore proper types (e.g. converting `QWord` or `Binary` to `String`), or return a single boolean masking partial failures.
+- **Audited Implementation:** `Restore-RegistrySnapshot` returns a structured `RollbackResult` (`Success`, `RestoredCount`, `FailedCount`, `TotalCount`, `RestoredItems`, `FailedItems`, `Errors`, `TargetFile`, `Message`) and handles three distinct rollback states:
   1. If key did not exist originally, values are removed and any newly created empty parent keys are safely pruned.
   2. If key existed but value was absent, only the added value property is deleted.
   3. If value existed, its exact registry kind (`DWord`, `QWord`, `Binary`, `MultiString`, `ExpandString`, `String`) is re-applied with the captured original value.
+  4. Write Verification: Every restored property is immediately verified via `Get-ItemProperty` to guarantee write success.
+  5. Per-Parameter Isolation: Individual errors do not abort the process; all failed entries are recorded in `FailedItems` and cause `Success` to evaluate to `$false`.
 
 ### 3.3. MSI Mode (Message Signaled Interrupts)
 - **Prior Remark:** Blindly applying MSI Mode to non-PCI devices or storage controllers without testing can cause BSODs (`INACCESSIBLE_BOOT_DEVICE`).

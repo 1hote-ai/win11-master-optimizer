@@ -94,7 +94,8 @@ function Invoke-FullRollback {
     Write-Host "  [4] Откатить настройки GPU и дисплея (MPO, HAGS, HDCP, DirectX)" -ForegroundColor White
     Write-Host "  [5] Откатить настройки приватности и Debloat (Copilot, Bing, Telemetry)" -ForegroundColor White
     Write-Host "  [6] Откатить настройки интерфейса (Проводник, GameDVR, Меню, Maintenance)" -ForegroundColor White
-    Write-Host "  [7] ПОЛНЫЙ ОТКАТ ВСЕХ ОПТИМИЗАЦИЙ К ЗАВОДСКИМ ДЕФОЛТАМ WINDOWS" -ForegroundColor Yellow
+    Write-Host "  [7] Восстановить частоту точек восстановления (SystemRestorePointCreationFrequency)" -ForegroundColor White
+    Write-Host "  [8] ПОЛНЫЙ ОТКАТ ВСЕХ ОПТИМИЗАЦИЙ К ЗАВОДСКИМ ДЕФОЛТАМ WINDOWS" -ForegroundColor Yellow
     Write-Host "  [0] Отмена" -ForegroundColor Gray
     Write-Host ""
     $rChoice = Read-Host "Действие"
@@ -106,7 +107,8 @@ function Invoke-FullRollback {
         "4" { Restore-AllGpuDisplaySettings }
         "5" { Restore-DebloatSettings }
         "6" { Restore-SystemUISettings; Restore-WindowsAutomaticMaintenance }
-        "7" {
+        "7" { Restore-SystemRestorePointCreationFrequency | Out-Null }
+        "8" {
             Restore-GamingMsiMode
             Restore-CpuGamingScheduling
             Restore-SystemResponsiveness
@@ -116,6 +118,7 @@ function Invoke-FullRollback {
             Restore-SystemUISettings
             Restore-WindowsAutomaticMaintenance
             Restore-GamingDns | Out-Null
+            Restore-SystemRestorePointCreationFrequency | Out-Null
             Write-Host "`n[OK] Все параметры сброшены до стандартных значений Windows 11." -ForegroundColor Green
         }
         default { Write-Host "Отмена операции отката." -ForegroundColor Gray }

@@ -64,6 +64,15 @@ Every function in the suite is assigned to one of four transparent safety tiers:
 - **Mitigation & Strict Whitelist:**
   - `Debloat.psm1` enforces a strict hardcoded whitelist protecting: `Microsoft.WindowsStore`, `Microsoft.StorePurchaseApp`, `Microsoft.XboxApp`, `Microsoft.GamingApp`, `Microsoft.XboxIdentityProvider`, `Microsoft.WindowsCalculator`, `Microsoft.WindowsNotepad`, `Microsoft.Paint`, `Microsoft.WindowsTerminal`, `Microsoft.ScreenSketch`, and `Microsoft.SecHealthUI`.
 
+### 3.6. Granular Rollback Engine & Side-Effect Remediation
+- **Mechanism:** `Modules/Safety.psm1` implements `Restore-RegistrySnapshot` returning a structured `RollbackResult` object.
+- **Fail-Safe Integrity:**
+  - **Per-Parameter Isolation:** Every registry value is processed inside an independent exception barrier. A permission or path failure on parameter $N$ does not abort the restoration of parameter $N+1$.
+  - **Write Verification:** Immediately following `Set-ItemProperty`, `Get-ItemProperty` confirms that the property exists and matches.
+  - **Strict Status Semantics:** If any entry fails, `Success` is unconditionally set to `$false`, and all failed entries are collected in `FailedItems` with detailed exception messages.
+  - **Zero Side-Effects for System Restore Frequency:** When creating a restore point, Windows imposes a 24-hour throttle via `SystemRestorePointCreationFrequency`. The optimizer captures the pre-existing state of this key before setting it to 0. During rollback, `Restore-SystemRestorePointCreationFrequency` returns it to its original value or removes it if it was not originally present.
+  - **Automated Backup Rotation:** `Invoke-BackupRotation` prunes snapshots beyond the 50 most recent files, preventing unbounded disk accumulation.
+
 ---
 
 ## 4. Ten Architecture Improvements for Maximum User Trust
