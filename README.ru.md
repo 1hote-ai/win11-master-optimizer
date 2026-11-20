@@ -2,6 +2,8 @@
 
 ![Windows 11 Master Optimizer Banner](assets/marketing/github-banner.svg)
 
+<img src="assets/marketing/logo.svg" alt="Windows 11 Master Optimizer Logo" width="84" height="84"/>
+
 # Windows 11 Master Optimizer
 **Честная оптимизация задержек Windows 11. Без плацебо, с полным контролем и откатом.**
 
@@ -11,7 +13,7 @@
 [![Tests - 34/34 Passing](https://img.shields.io/badge/Tests-34%2F34%20Пройдено-34D399?style=for-the-badge&logo=checkmarx&logoColor=white)](Test-Win11Optimizer.ps1)
 [![License Choice - MIT / Apache / GPL](https://img.shields.io/badge/Лицензия-На%20согласовании-F59E0B?style=for-the-badge&logo=open-source-initiative&logoColor=white)](docs/LICENSE_COMPARISON.md)
 
-[English](README.md) • [Русский](README.ru.md) • [Паспорт Продукта](docs/PRODUCT_PASSPORT.md) • [Аудит Безопасности](docs/SAFETY_AUDIT.md) • [Сообщить об ошибке](https://github.com/1hote-ai/win11-master-optimizer/issues/new/choose)
+[English](README.md) • [Русский](README.ru.md) • [Паспорт Продукта](docs/PRODUCT_PASSPORT.md) • [Аудит Безопасности](docs/SAFETY_AUDIT.md) • [GitHub Topics & SEO](docs/GITHUB_TOPICS.md) • [Сообщить об ошибке](https://github.com/1hote-ai/win11-master-optimizer/issues/new/choose)
 
 </div>
 
@@ -52,7 +54,39 @@ win11-master-optimizer/
 
 ---
 
-## 🛠 Функциональные блоки
+## 🖥 Интерфейс и живая демонстрация работы
+
+Windows 11 Master Optimizer оснащен как интерактивным терминальным меню (TUI) с живыми динамическими индикаторами статуса параметров, так и фоновым CLI-интерфейсом для быстрой автоматизации.
+
+<div align="center">
+
+| 🖥️ Главное интерактивное TUI-меню | 🩺 Аудит 26 параметров системы (Health-Check) |
+| :---: | :---: |
+| [![Главное TUI меню](assets/marketing/screenshot-tui-main.svg)](assets/marketing/screenshot-tui-main.svg) | [![Аудит системы](assets/marketing/screenshot-health-check.svg)](assets/marketing/screenshot-health-check.svg) |
+
+### 🎬 Анимированная демонстрация работы CLI
+![Живая демонстрация работы](assets/marketing/tui-demo.svg)
+
+</div>
+
+---
+
+### 🔬 Сравнение с типичными твикерами
+
+<div align="center">
+  <img src="assets/marketing/comparison-chart.svg" alt="Инфографика сравнения возможностей" width="850"/>
+</div>
+
+| Возможность / Критерий | Обычные "FPS Boost" паки | Win11 Master Optimizer |
+| :--- | :--- | :--- |
+| **Прозрачность исходного кода** | ❌ Закрытые EXE / мутные BAT | ✅ 100% Открытый PowerShell и C# P/Invoke |
+| **Гарантия и откат изменений** | ❌ Отсутствует («Переустанови винду») | ✅ Точки восстановления + JSON-снимки реестра |
+| **Очистка Standby RAM кэша** | ❌ Неподписанные сторонние утилиты | ✅ Прямой вызов `NtSetSystemInformation` в RAM |
+| **Управление прерываниями (MSI)**| ❌ Вслепую или вручную через чужой софт | ✅ Безопасный PCI-фильтр (`Display`, `Net`, `Media`) |
+| **Поддержка Windows 11 24H2** | ❌ Ломается обновлениями Windows | ✅ Полная адаптация под 24H2 (Build 26100+) |
+| **Безопасность для античитов** | ❌ Риск бана в Vanguard/EAC/VAC | ✅ Только штатные системные API Windows |
+
+---
 
 ### 1. ⚡ Жёсткая оптимизация задержек и Standby RAM (`GamingLatency.psm1`)
 - **Очистка Standby RAM кэша NT-ядром:** Получает привилегию `SeProfileSingleProcessPrivilege` и вызывает функцию `NtSetSystemInformation(80, ref 4)`. Освобождает занятую кэшем оперативную память без сторонних утилит, устраняя микрофризы в играх с интенсивным выделением памяти (Escape from Tarkov, Rust, Battlefield).
@@ -152,6 +186,62 @@ powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode Rollback
 powershell -ExecutionPolicy Bypass -File .\Test-Win11Optimizer.ps1
 ```
 *(Все тесты завершаются со статусом `[PASS]` и Exit Code 0).*
+
+---
+
+## ❓ Часто задаваемые вопросы (FAQ)
+
+<details>
+<summary><b>Увеличит ли эта программа мой средний FPS в играх в 2 раза?</b></summary>
+
+**Нет.** Любой инструмент, обещающий удвоение среднего FPS на современных видеокартах — это чистый маркетинг и плацебо. То, что реально делает наш комплекс — это **стабилизация времени кадра (Frametime)**: устранение очередей прерываний DPC, решение проблемы микро-фризов MPO при открытом Discord/OBS, очистка забитого Standby RAM кэша и приоритезация игрового процесса на ядрах CPU. Как итог: значительно выше показатели 1% и 0.1% Low FPS и плавный отклик мыши.
+</details>
+
+<details>
+<summary><b>Не сломает ли оптимизатор Microsoft Store или Windows Update?</b></summary>
+
+**Нет.** Модуль Debloat работает по строгому «белому списку» (whitelist): он гарантированно сохраняет Microsoft Store, приложение Xbox, Калькулятор, Блокнот, Ножницы и Защитник Windows (`SecHealthUI`). Windows Update продолжает получать все важные обновления безопасности; блокируется исключительно автоматическая подмена проверенных видеодрайверов на базовые драйверы Microsoft.
+</details>
+
+<details>
+<summary><b>Безопасно ли это для Riot Vanguard, Easy Anti-Cheat (EAC) и BattlEye?</b></summary>
+
+**Да, на 100%.** Мы не внедряем DLL-библиотеки в процессы игр, не модифицируем исполняемые файлы и не ставим сомнительные драйверы режима ядра. Все настройки используют официальные системные ветки реестра Windows, параметры групповых политик и документированные вызовы NT-ядра.
+</details>
+
+<details>
+<summary><b>Как полностью вернуть всё обратно, если мне не понравится?</b></summary>
+
+Запустите команду `Win11Optimizer.ps1 -Mode Rollback` и выберите пункт `[7] Полный сброс к заводским дефолтам Windows 11`. Программа считает сохраненные исходные JSON-снимки и восстановит все измененные параметры в оригинальное состояние Microsoft Windows 11.
+</details>
+
+---
+
+## 🗺 План развития (Roadmap)
+
+- [x] Полная совместимость с Windows 11 24H2 (Build 26100+)
+- [x] Очистка Standby RAM кэша через NT-ядро в оперативной памяти
+- [x] Двухуровневый движок моментального отката (Restore Point + JSON-снимки)
+- [x] Набор автоматических тестов из 34 проверок
+- [x] Anycast DNS Benchmark и 1-Click переключатель DoH
+- [ ] Экспорт графических HTML/JSON отчетов о здоровье системы
+- [ ] Автоматическая интеграция с LatencyMon для замера DPC до и после
+- [ ] Встроенный модуль записи микробенчмарков 1% Low FPS
+- [ ] Готовые киберспортивные пресеты под популярные игры (CS2, Valorant, Apex Legends)
+
+---
+
+## 🤝 Участие в разработке (Contributing)
+
+Мы рады контрибьюторам, тестировщикам и энтузиастам Windows! Пожалуйста, ознакомьтесь с [CONTRIBUTING.md](CONTRIBUTING.md) и правилами безопасности [SECURITY.md](SECURITY.md) перед созданием Pull Request.
+
+---
+
+## 💬 Сообщество и поддержка
+
+- **Нашли ошибку?** Создайте [Bug Report](https://github.com/1hote-ai/win11-master-optimizer/issues/new?template=bug_report.yml).
+- **Несовместимость с железом?** Создайте [Compatibility Issue](https://github.com/1hote-ai/win11-master-optimizer/issues/new?template=compatibility_issue.yml).
+- **Замеры и бенчмарки?** Поделитесь логами через [Performance Report](https://github.com/1hote-ai/win11-master-optimizer/issues/new?template=performance_report.yml).
 
 ---
 

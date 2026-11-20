@@ -250,39 +250,75 @@ Reddit communities demand high technical substance and will ban self-promoters w
 
 ---
 
-### 3.2. Ready-to-Post Reddit Publications
+### 3.2. Ready-to-Post Reddit Publications (4 Formats)
 
-#### 📝 Reddit Post 1: Open Source Show & Tell (r/opensource & r/Windows11)
-**Title:** `I built an open-source, fully reversible Windows 11 latency & diagnostic suite with native NT-kernel RAM purging (Zero snake oil / 24H2 ready)`
+#### 📝 Publication Variant 1: Launch Announcement (r/Windows11, r/software)
+**Target Subreddits:** `r/Windows11`, `r/software`, `r/windows`  
+**Flair:** `Software / Tool` or `Project`  
+**Title:** `[Release] Windows 11 Master Optimizer v0.1.0-beta: An open-source, non-destructive low-latency suite with a 2-tier failsafe rollback engine`
+
+**Body:**
+```markdown
+Hello r/Windows11,
+
+Today we’re releasing the first public beta of **Windows 11 Master Optimizer (v0.1.0-beta)** — an open-source system tuning and latency diagnostic suite engineered specifically for competitive gamers, audio engineers, and power users.
+
+Repository: https://github.com/1hote-ai/win11-master-optimizer
+
+### Why we built this:
+Most Windows optimizers are opaque `.bat` scripts or closed `.exe` tools that delete system components and leave users stranded when things break. We designed this project around four strict engineering rules:
+
+1. **Two-Tier Rollback Engine:** Before modifying anything, it automatically creates an official Windows System Restore Point (`Checkpoint-Computer`) and captures granular JSON snapshots of every original registry key and value type (`DWord`, `QWord`, `Binary`, `MultiString`). You can revert back to standard Windows defaults in 1 click.
+2. **Native NT-Kernel Memory Purging:** Standby RAM purging and timer resolution queries are executed directly in memory via C# P/Invoke (`NtSetSystemInformation`, `NtQueryTimerResolution`). Zero closed-source binaries are dropped to disk.
+3. **Hardware-Aware Safety:** It inspects the PCI bus and migrates GPU, Network, and Audio controllers to High-Priority MSI Mode without touching storage controllers or risking boot issues.
+4. **Windows 11 24H2 Ready:** Clean disabling of AI Recall (`DisableAIDataAnalysis = 1`), Microsoft Copilot taskbar removal, Bing web search removal, and safe UWP debloat with a strict whitelist protecting the Microsoft Store and core apps.
+
+### Quick Start:
+```powershell
+# Clone the repository
+git clone https://github.com/1hote-ai/win11-master-optimizer.git
+cd win11-master-optimizer
+
+# Preview all changes safely without modifying your system
+powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode HealthCheck
+```
+
+We welcome you to inspect the code, test it in `-DryRun` mode, and let us know what you think!
+```
+
+---
+
+#### 📝 Publication Variant 2: Show and Tell (r/opensource, r/PowerShell)
+**Target Subreddits:** `r/opensource`, `r/PowerShell`  
+**Flair:** `Show and Tell` or `Project Showcase`  
+**Title:** `Show and Tell: Building an open-source, fully reversible Windows 11 latency suite with in-memory NT-kernel P/Invoke in PowerShell`
 
 **Body:**
 ```markdown
 Hey everyone,
 
-Like many of you who play competitive games or produce audio on Windows 11, I’ve spent years looking at "gaming optimizers." The vast majority of them fall into two awful categories:
-1. Shady `.bat` scripts full of broken syntax that delete core components and offer zero rollback.
-2. Closed-source `.exe` utilities packed with bundled crapware or triggering false-positive alerts on VirusTotal.
+I wanted to share an open-source project we’ve been engineering: **Windows 11 Master Optimizer**.
 
-A few months ago, we set out to build an engineering-grade alternative: **Windows 11 Master Optimizer**.
+GitHub: https://github.com/1hote-ai/win11-master-optimizer
 
-### What makes this different?
-1. **100% Auditable Code:** Everything is written in modular PowerShell 5.1/7 with in-memory C# P/Invoke. No temporary binaries dropped on disk.
-2. **Two-Tier Rollback Engine:** Before touching a single key, it overrides the Windows 24-hour throttle to generate a System Restore Point (`Checkpoint-Computer`) and saves JSON snapshots of every original registry value and type (`DWord`, `QWord`, `Binary`, etc.). Reverting everything to stock Windows defaults takes 1 click.
-3. **Native NT-Kernel Memory Purging:** Instead of bundling suspicious utilities like `EmptyStandbyList.exe`, it acquires `SeProfileSingleProcessPrivilege` and calls `ntdll!NtSetSystemInformation` directly in memory to purge the cached Standby list.
-4. **Hardware-Aware MSI Mode:** It interrogates the PCI bus and migrates GPU, Network, and Audio controllers to Message Signaled Interrupts with High Priority (`DevicePriority = 3`), eliminating shared line IRQ bottlenecks.
-5. **Windows 11 24H2 Ready:** Disables Microsoft Recall (`DisableAIDataAnalysis = 1` + DISM optional feature), removes Copilot from the taskbar, and stops background MSN widgets.
-6. **26-Point Health Audit & Dry-Run Mode:** Supports `-DryRun` so you can inspect every planned change before applying anything.
+The goal was to replace shady, unmaintained batch scripts with a modern, modular PowerShell architecture that provides complete transparency, verifiable safety, and reproducible testing.
 
-The project is completely free, transparent, and tested with a 34-assertion automated test suite.
+### Technical Highlights:
+- **Modular Architecture:** Divided into 8 decoupled modules (`Safety.psm1`, `GamingLatency.psm1`, `NetworkGaming.psm1`, `GpuDisplay.psm1`, `Debloat.psm1`, `SystemUI.psm1`, `Diagnostics.psm1`, `AppInstaller.psm1`) running in strict mode (`Set-StrictMode -Version Latest`).
+- **In-Memory C# P/Invoke:** Rather than bundling suspicious external EXEs like `EmptyStandbyList.exe`, we compile native Win32/NT-kernel bridges on-the-fly using `Add-Type`. We acquire `SeProfileSingleProcessPrivilege` and call `ntdll!NtSetSystemInformation` with command 80 to flush Standby RAM and trim working sets.
+- **2-Tier Rollback Engine:** Bypasses the 24-hour Windows restore throttle (`SystemRestorePointCreationFrequency = 0`), writes per-module JSON state deltas, and prunes empty newly created registry subkeys upon rollback.
+- **Automated Verification:** Ships with `Test-Win11Optimizer.ps1` running 34 assertions verifying module loading, snapshot creation, rollback integrity, and dry-run safety with exit code 0.
 
-GitHub Repository: https://github.com/1hote-ai/win11-master-optimizer
+All commands support `-DryRun` so you can verify the exact planned changes before applying anything.
 
-I’d love your critical feedback on our rollback implementation and suggestions for additional kernel diagnostics. Feel free to roast the code or submit issues!
+Take a look at the code — we’d love your critique on our PowerShell and P/Invoke patterns!
 ```
 
 ---
 
-#### 📝 Reddit Post 2: Technical Deep Dive (r/pcmasterrace)
+#### 📝 Publication Variant 3: Development Progress & Architecture Deep Dive (r/pcmasterrace, r/programming)
+**Target Subreddits:** `r/pcmasterrace`, `r/programming`  
+**Flair:** `OC / Technical Discussion`  
 **Title:** `Why typical "FPS Boost" scripts are placebo, and what actually reduces frametime spikes in Windows 11 (DPC latency, MPO, and MSI Mode)`
 
 **Body:**
@@ -304,4 +340,33 @@ We automated all of these verified tweaks (along with automatic restore points a
 👉 https://github.com/1hote-ai/win11-master-optimizer
 
 Full benchmark methodology and CapFrameX testing instructions are included in the repository docs.
+```
+
+---
+
+#### 📝 Publication Variant 4: Request for Feedback & Call for Beta Testers (r/pcgaming, r/Competitiveoverwatch, r/cs2)
+**Target Subreddits:** `r/pcgaming`, `r/Competitiveoverwatch`, `r/cs2`  
+**Flair:** `Discussion / Feedback Wanted`  
+**Title:** `Looking for beta testers: Open-source Windows 11 latency suite tested for CS2, Valorant, and Apex Legends (No snake oil / full rollback)`
+
+**Body:**
+```markdown
+Hey everyone,
+
+We are looking for competitive gamers and system benchmarkers to help test and critique **Windows 11 Master Optimizer (v0.1.0-beta)**.
+
+GitHub Repository: https://github.com/1hote-ai/win11-master-optimizer
+
+### What we need feedback on:
+1. **DPC Latency Traces:** Run LatencyMon before and after enabling MSI Mode and Nagle tuning. Did your DPC execution time drop?
+2. **CapFrameX / PresentMon 1% Lows:** Did disabling DWM MPO or clearing Standby RAM reduce frametime variance in your games?
+3. **Hardware Compatibility:** Have an AMD Radeon 7000-series GPU, an Intel Arc card, or an unusual Wi-Fi 6E/7 NIC? We want to ensure our PCI enumeration and driver filters work seamlessly across all setups.
+4. **Rollback Verification:** Test `Win11Optimizer.ps1 -Mode Rollback` and confirm that all registry values return 100% to your machine's original stock settings.
+
+### How to participate:
+1. Clone the repo or download the beta package: `https://github.com/1hote-ai/win11-master-optimizer`
+2. Run `powershell -ExecutionPolicy Bypass -File .\Win11Optimizer.ps1 -Mode HealthCheck`
+3. Share your findings, CapFrameX logs, or hardware issues via GitHub Issues or in the comments below!
+
+No telemetry, zero third-party binaries, and 100% open source. Thank you for helping us build a cleaner PC gaming ecosystem!
 ```

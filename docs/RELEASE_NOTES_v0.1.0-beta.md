@@ -59,4 +59,13 @@ Welcome to the first public beta of **Windows 11 Master Optimizer**! This releas
 
 ## 🔒 Verification & Checksums
 
-Release archives built via `tools/Build-ReleasePackage.ps1` include automated SHA-256 checksums to verify package integrity.
+Release archives built via `tools/Build-ReleasePackage.ps1` include automated SHA-256 checksums to verify package integrity:
+
+| Asset Name | Size | SHA-256 Checksum |
+| :--- | :--- | :--- |
+| `win11-master-optimizer-v0.1.0-beta.zip` | 172.07 KB | `E4F4DCFCB8F09E09B1D92B694A7A600DC686573579290FD7A85F4461641CEB4F` |
+
+*To verify checksum in PowerShell:*
+```powershell
+Get-FileHash -Path .\dist\win11-master-optimizer-v0.1.0-beta.zip -Algorithm SHA256
+```

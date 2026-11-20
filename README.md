@@ -2,6 +2,8 @@
 
 ![Windows 11 Master Optimizer Banner](assets/marketing/github-banner.svg)
 
+<img src="assets/marketing/logo.svg" alt="Windows 11 Master Optimizer Logo" width="84" height="84"/>
+
 # Windows 11 Master Optimizer
 **Zero Snake Oil. Pure Latency Reduction & Transparent System Control.**
 
@@ -11,7 +13,7 @@
 [![Tests - 34/34 Passing](https://img.shields.io/badge/Tests-34%2F34%20Passing-34D399?style=for-the-badge&logo=checkmarx&logoColor=white)](Test-Win11Optimizer.ps1)
 [![License Choice - MIT / Apache / GPL](https://img.shields.io/badge/License%20Choice-Review%20Pending-F59E0B?style=for-the-badge&logo=open-source-initiative&logoColor=white)](docs/LICENSE_COMPARISON.md)
 
-[English](README.md) • [Русский](README.ru.md) • [Documentation](docs/PRODUCT_PASSPORT.md) • [Safety Audit](docs/SAFETY_AUDIT.md) • [Bug Report](https://github.com/1hote-ai/win11-master-optimizer/issues/new/choose)
+[English](README.md) • [Русский](README.ru.md) • [Documentation](docs/PRODUCT_PASSPORT.md) • [Safety Audit](docs/SAFETY_AUDIT.md) • [Topics & SEO](docs/GITHUB_TOPICS.md) • [Bug Report](https://github.com/1hote-ai/win11-master-optimizer/issues/new/choose)
 
 </div>
 
@@ -50,7 +52,30 @@ win11-master-optimizer/
 └── Reports/                       # Timestamped diagnostic & audit logs
 ```
 
+---
+
+## 🖥 Interface & Real Terminal Visualizations
+
+Windows 11 Master Optimizer provides both an interactive, dynamic Text User Interface (TUI) with real-time optimization status indicators and a non-interactive CLI mode for automated silent tuning.
+
+<div align="center">
+
+| 🖥️ Interactive TUI Main Menu | 🩺 26-Point System Health Audit |
+| :---: | :---: |
+| [![TUI Main Menu](assets/marketing/screenshot-tui-main.svg)](assets/marketing/screenshot-tui-main.svg) | [![26-Point Health Audit](assets/marketing/screenshot-health-check.svg)](assets/marketing/screenshot-health-check.svg) |
+
+### 🎬 Animated CLI Execution Demo
+![Live Execution Demo](assets/marketing/tui-demo.svg)
+
+</div>
+
+---
+
 ### 🔬 Comparison with Legacy Tweakers
+
+<div align="center">
+  <img src="assets/marketing/comparison-chart.svg" alt="Feature Comparison Infographic" width="850"/>
+</div>
 
 | Feature / Criterion | Typical "FPS Boost" Packs | Win11 Master Optimizer |
 | :--- | :--- | :--- |

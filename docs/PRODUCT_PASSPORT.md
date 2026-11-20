@@ -21,6 +21,7 @@ win11-master-optimizer/
 ├── Win11Optimizer.ps1             # Main Orchestrator (CLI & Interactive TUI)
 ├── Test-Win11Optimizer.ps1        # Automated Test Suite (34 assertions)
 ├── Start.bat / Start-Optimizer.bat # Multi-entry Elevation Launchers (UTF-8, UAC)
+├── Запустить Оптимизатор.bat      # Native RU Elevation Launcher (UTF-8)
 ├── Modules/
 │   ├── Safety.psm1                # System Restore Points, JSON Snapshots, Rollback
 │   ├── GamingLatency.psm1         # MSI Mode, CPU Scheduling, RAM Cleaner, VBS
@@ -30,6 +31,10 @@ win11-master-optimizer/
 │   ├── SystemUI.psm1              # Classic Menu, Explorer Tweaks, USB Power, Maintenance
 │   ├── Diagnostics.psm1           # 26-Point Health Audit, Timer Resolution, DPC/ISR, Ping
 │   └── AppInstaller.psm1          # Winget Silent Package Manager (25 curated tools)
+├── assets/marketing/              # Branding, Banner, Logo, TUI captures & SVGs
+├── tools/
+│   ├── Build-ReleasePackage.ps1   # Clean release ZIP & SHA-256 generator
+│   └── Setup-GitHubLabels.ps1     # GitHub Labels & Topics REST API sync
 ├── Backups/                       # Granular JSON state snapshots before modifications
 └── Reports/                       # Timestamped diagnostic and benchmark audits
 ```

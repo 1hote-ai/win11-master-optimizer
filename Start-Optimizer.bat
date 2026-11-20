@@ -23,7 +23,7 @@ if %errorlevel% equ 0 (
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_PATH%"
 ) else (
     echo [UAC] Requesting Administrator privileges...
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell.exe -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File """"%SCRIPT_PATH%""""' -Verb RunAs"
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell.exe -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File \""""%SCRIPT_PATH%\""""' -Verb RunAs"
 )
 
 if %errorlevel% neq 0 (
